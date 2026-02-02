@@ -125,7 +125,7 @@ export const FinesManager = () => {
     const playerTotalsData = playerData
       .map((player) => {
         let playerTotal = (totals[player.id] || 0) + (player.manual_payment || 0);
-
+        debugger
         if (!player.participates_in_fund) {
           playerTotal += expensePerPlayer;
         }
@@ -237,7 +237,7 @@ export const FinesManager = () => {
   };
 
   const formatPrice = (amount: number) => {
-    return amount % 1 === 0 ? `${amount}` : amount.toFixed(2);
+    return amount;
   };
 
   const getCurrentSeason = () => {

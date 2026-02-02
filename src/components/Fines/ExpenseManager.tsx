@@ -286,6 +286,7 @@ export const ExpenseManager = ({ onUpdate }: ExpenseManagerProps) => {
           expenses.map((expense) => {
             const participantCount = expense.expense_participants?.length || 0;
             const perPersonAmount = participantCount > 0 ? Number(expense.amount) / participantCount : 0;
+            console.log("perPerson", participantCount, perPersonAmount);
 
             return (
               <div
