@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, Player } from '../../lib/supabase';
-import { UserPlus, CreditCard as Edit2, Trash2, User, Car, Mail, Calendar, TrendingUp, Coffee, Euro } from 'lucide-react';
+import { UserPlus, CreditCard as Edit2, Trash2, User, Car, Mail, Calendar, TrendingUp, Coffee, Euro, Wine } from 'lucide-react';
 import { PlayerModal } from './PlayerModal';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -310,7 +310,7 @@ export const PlayerList = () => {
                     <div className="flex items-center gap-3 mt-1">
                       {(playerStats[player.id]?.aperoCount || 0) > 0 && (
                         <div className="flex items-center gap-1" title="Apéro">
-                          <Coffee size={14} className="text-orange-400" />
+                          <Wine size={14} className="text-orange-400" />
                           <span className="text-xs text-slate-400">
                             {playerStats[player.id]?.aperoCount}
                           </span>
@@ -318,7 +318,7 @@ export const PlayerList = () => {
                       )}
                       {(playerStats[player.id]?.matchCount || 0) > 0 && (
                         <div className="flex items-center gap-1" title="Table de marque">
-                          <TrendingUp size={14} className="text-blue-400" />
+                          <Calendar size={14} className="text-blue-400" />
                           <span className="text-xs text-slate-400">
                             {playerStats[player.id]?.matchCount}
                           </span>

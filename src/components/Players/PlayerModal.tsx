@@ -17,8 +17,10 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
   const [email, setEmail] = useState('');
   const [participatesInFund, setParticipatesInFund] = useState(true);
   const [isCoach, setIsCoach] = useState(false);
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
 
   useEffect(() => {
     if (player) {
@@ -179,7 +181,7 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
               className="w-5 h-5 text-green-500 bg-slate-800 border-slate-600 rounded focus:ring-2 focus:ring-green-500"
             />
             <label htmlFor="isCoach" className="text-slate-300 font-medium">
-              Est un coach
+              Coach
             </label>
           </div>
 
