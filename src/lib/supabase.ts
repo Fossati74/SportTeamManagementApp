@@ -22,6 +22,9 @@ export interface Player {
   participates_in_fund: boolean;
   is_coach: boolean;
   created_at: string;
+  carpooling: boolean;
+  scoreboard: boolean;
+  thursday_aperitif: boolean;
 }
 
 export interface AperoSchedule {

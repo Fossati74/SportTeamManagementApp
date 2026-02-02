@@ -18,9 +18,13 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
   const [participatesInFund, setParticipatesInFund] = useState(true);
   const [isCoach, setIsCoach] = useState(false);
   
+  // Nouveaux états pour les champs ajoutés
+  const [carpooling, setCarpooling] = useState(true);
+  const [scoreboard, setScoreboard] = useState(true);
+  const [thursdayAperitif, setThursdayAperitif] = useState(true);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
 
   useEffect(() => {
     if (player) {
@@ -32,6 +36,10 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
       setEmail(player.email || '');
       setParticipatesInFund(player.participates_in_fund ?? true);
       setIsCoach(player.is_coach ?? false);
+      // Récupération des valeurs depuis la DB
+      setCarpooling(player.carpooling ?? true);
+      setScoreboard(player.scoreboard ?? true);
+      setThursdayAperitif(player.thursday_aperitif ?? true);
     }
   }, [player]);
 
@@ -42,41 +50,37 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
 
     try {
       const playerName = `${firstName} ${lastName}`;
+      
+      // Préparation des données avec la logique conditionnelle
+      const playerData = {
+        first_name: firstName,
+        last_name: lastName,
+        photo_url: photoUrl || null,
+        units,
+        has_license: hasLicense,
+        email: email || null,
+        participates_in_fund: participatesInFund,
+        is_coach: isCoach,
+        carpooling: carpooling,
+        // Si pas coach, on force à true pour la DB (mais on cache le champ dans l'UI)
+        scoreboard: isCoach ? scoreboard : true,
+        thursday_aperitif: isCoach ? thursdayAperitif : true,
+      };
 
       if (player) {
-        const { error } = await supabase
+        const { error: updateError } = await supabase
           .from('players')
-          .update({
-            first_name: firstName,
-            last_name: lastName,
-            photo_url: photoUrl || null,
-            units,
-            has_license: hasLicense,
-            email: email || null,
-            participates_in_fund: participatesInFund,
-            is_coach: isCoach,
-          })
+          .update(playerData)
           .eq('id', player.id);
 
-        if (error) throw error;
-
+        if (updateError) throw updateError;
         await notifyPlayerAction(email || undefined, playerName, 'updated');
       } else {
-        const { error } = await supabase
+        const { error: insertError } = await supabase
           .from('players')
-          .insert({
-            first_name: firstName,
-            last_name: lastName,
-            photo_url: photoUrl || null,
-            units,
-            has_license: hasLicense,
-            email: email || null,
-            participates_in_fund: participatesInFund,
-            is_coach: isCoach,
-          });
+          .insert(playerData);
 
-        if (error) throw error;
-
+        if (insertError) throw insertError;
         await notifyPlayerAction(email || undefined, playerName, 'created');
       }
 
@@ -90,99 +94,68 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-800 rounded-lg p-6 w-full max-w-md border border-slate-700">
+      <div className="bg-slate-800 rounded-lg p-6 w-full max-w-md border border-slate-700 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold text-white">
             {player ? 'Modifier le joueur' : 'Ajouter un joueur'}
           </h3>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
-          >
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
             <X size={24} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-slate-300 mb-2">
-              Prénom
-            </label>
-            <input
-              id="firstName"
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-              required
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Prénom</label>
+              <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500 outline-none" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Nom</label>
+              <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500 outline-none" required />
+            </div>
           </div>
 
           <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-slate-300 mb-2">
-              Nom
-            </label>
-            <input
-              id="lastName"
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-              required
-            />
+            <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500 outline-none" placeholder="joueur@example.com" />
           </div>
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
-              Email (optionnel)
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="joueur@example.com"
-            />
-          </div>
+          <div className="space-y-3 pt-2">
+            {/* Coach Toggle */}
+            <div className="flex items-center gap-3 bg-slate-900 px-4 py-3 rounded-lg border border-slate-700/50">
+              <input id="isCoach" type="checkbox" checked={isCoach} onChange={(e) => setIsCoach(e.target.checked)} className="w-5 h-5 text-green-500 bg-slate-800 border-slate-600 rounded focus:ring-green-500" />
+              <label htmlFor="isCoach" className="text-slate-300 font-medium">Coach</label>
+            </div>
 
-          <div className="flex items-center gap-3 bg-slate-900 px-4 py-3 rounded-lg">
-            <input
-              id="hasLicense"
-              type="checkbox"
-              checked={hasLicense}
-              onChange={(e) => setHasLicense(e.target.checked)}
-              className="w-5 h-5 text-green-500 bg-slate-800 border-slate-600 rounded focus:ring-2 focus:ring-green-500"
-            />
-            <label htmlFor="hasLicense" className="text-slate-300 font-medium">
-              Possède le permis de conduire
-            </label>
-          </div>
+            {/* Covoiturage (Toujours visible) */}
+            <div className="flex items-center gap-3 bg-slate-900 px-4 py-3 rounded-lg border border-slate-700/50">
+              <input id="carpooling" type="checkbox" checked={carpooling} onChange={(e) => setCarpooling(e.target.checked)} className="w-5 h-5 text-green-500 bg-slate-800 border-slate-600 rounded focus:ring-green-500" />
+              <label htmlFor="carpooling" className="text-slate-300 font-medium">Participe au covoiturage</label>
+            </div>
 
-          <div className="flex items-center gap-3 bg-slate-900 px-4 py-3 rounded-lg">
-            <input
-              id="participatesInFund"
-              type="checkbox"
-              checked={participatesInFund}
-              onChange={(e) => setParticipatesInFund(e.target.checked)}
-              className="w-5 h-5 text-green-500 bg-slate-800 border-slate-600 rounded focus:ring-2 focus:ring-green-500"
-            />
-            <label htmlFor="participatesInFund" className="text-slate-300 font-medium">
-              Participe à la caisse noire
-            </label>
-          </div>
+            {/* Caisse Noire (Toujours visible) */}
+            <div className="flex items-center gap-3 bg-slate-900 px-4 py-3 rounded-lg border border-slate-700/50">
+              <input id="participatesInFund" type="checkbox" checked={participatesInFund} onChange={(e) => setParticipatesInFund(e.target.checked)} className="w-5 h-5 text-green-500 bg-slate-800 border-slate-600 rounded focus:ring-green-500" />
+              <label htmlFor="participatesInFund" className="text-slate-300 font-medium">Participe à la caisse noire</label>
+            </div>
 
-          <div className="flex items-center gap-3 bg-slate-900 px-4 py-3 rounded-lg">
-            <input
-              id="isCoach"
-              type="checkbox"
-              checked={isCoach}
-              onChange={(e) => setIsCoach(e.target.checked)}
-              className="w-5 h-5 text-green-500 bg-slate-800 border-slate-600 rounded focus:ring-2 focus:ring-green-500"
-            />
-            <label htmlFor="isCoach" className="text-slate-300 font-medium">
-              Coach
-            </label>
+            {/* Champs conditionnels si Coach */}
+            {isCoach && (
+              <div className="space-y-3 pt-2 border-t border-slate-700 animate-in fade-in slide-in-from-top-1">
+                <p className="text-xs font-bold text-green-500 uppercase tracking-wider">Missions Staff</p>
+                
+                <div className="flex items-center gap-3 bg-slate-900/50 px-4 py-3 rounded-lg border border-green-500/20">
+                  <input id="scoreboard" type="checkbox" checked={scoreboard} onChange={(e) => setScoreboard(e.target.checked)} className="w-5 h-5 text-green-500 bg-slate-800 border-slate-600 rounded focus:ring-green-500" />
+                  <label htmlFor="scoreboard" className="text-slate-300 font-medium">Table de marque</label>
+                </div>
+
+                <div className="flex items-center gap-3 bg-slate-900/50 px-4 py-3 rounded-lg border border-green-500/20">
+                  <input id="thursdayAperitif" type="checkbox" checked={thursdayAperitif} onChange={(e) => setThursdayAperitif(e.target.checked)} className="w-5 h-5 text-green-500 bg-slate-800 border-slate-600 rounded focus:ring-green-500" />
+                  <label htmlFor="thursdayAperitif" className="text-slate-300 font-medium">Apéros du jeudi</label>
+                </div>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -191,19 +164,11 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
             </div>
           )}
 
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
-            >
+          <div className="flex gap-3 mt-6">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors">
               Annuler
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50"
-            >
+            <button type="submit" disabled={loading} className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-bold hover:shadow-lg hover:shadow-green-500/20 transition-all disabled:opacity-50">
               {loading ? 'Enregistrement...' : 'Enregistrer'}
             </button>
           </div>
