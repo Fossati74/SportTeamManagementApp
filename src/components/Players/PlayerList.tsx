@@ -12,6 +12,7 @@ import {
   Euro,
   Search,
   X as CloseIcon,
+  Phone,
 } from "lucide-react";
 import { PlayerModal } from "./PlayerModal";
 import { useAuth } from "../../contexts/AuthContext";
@@ -278,15 +279,15 @@ export const PlayerList = () => {
               </div>
 
               {isAdmin && (
-                <div className={`mt-4 pt-3 ${player.email ? 'border-t border-slate-700/50' : ''}`}>
-                  {player.email ? (
+                <div className={`mt-4 pt-3 ${player.phone_number ? 'border-t border-slate-700/50' : ''}`}>
+                  {player.phone_number ? (
                     <div className="flex items-center gap-2 overflow-hidden text-slate-400">
-                      <Mail size={14} className="text-blue-400 shrink-0" />
-                      <span className="text-xs truncate">{player.email}</span>
+                      <Phone size={14} className="text-blue-400 shrink-0" />
+                      <span className="text-xs truncate">{player.phone_number}</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 border-t border-slate-700/50 pt-3 text-slate-500 italic text-xs">
-                      <Mail size={14} className="shrink-0" /> Email indisponible
+                      <Phone size={14} className="shrink-0" /> Numéro de téléphone indisponible
                     </div>
                   )}
                 </div>

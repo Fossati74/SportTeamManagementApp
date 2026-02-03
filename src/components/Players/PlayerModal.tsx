@@ -13,8 +13,7 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
   const [lastName, setLastName] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [units, setUnits] = useState(1);
-  const [hasLicense, setHasLicense] = useState(false);
-  const [email, setEmail] = useState('');
+  const [phone_number, setPhoneNumber] = useState('');
   const [participatesInFund, setParticipatesInFund] = useState(true);
   const [isCoach, setIsCoach] = useState(false);
   
@@ -32,8 +31,7 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
       setLastName(player.last_name);
       setPhotoUrl(player.photo_url || '');
       setUnits(player.units);
-      setHasLicense(player.has_license);
-      setEmail(player.email || '');
+      setPhoneNumber(player.phone_number || '');
       setParticipatesInFund(player.participates_in_fund ?? true);
       setIsCoach(player.is_coach ?? false);
       // Récupération des valeurs depuis la DB
@@ -57,8 +55,7 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
         last_name: lastName,
         photo_url: photoUrl || null,
         units,
-        has_license: hasLicense,
-        email: email || null,
+        phone_number: phone_number || null,
         participates_in_fund: participatesInFund,
         is_coach: isCoach,
         carpooling: carpooling,
@@ -74,14 +71,14 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
           .eq('id', player.id);
 
         if (updateError) throw updateError;
-        await notifyPlayerAction(email || undefined, playerName, 'updated');
+        await notifyPlayerAction(phone_number || undefined, playerName, 'updated');
       } else {
         const { error: insertError } = await supabase
           .from('players')
           .insert(playerData);
 
         if (insertError) throw insertError;
-        await notifyPlayerAction(email || undefined, playerName, 'created');
+        await notifyPlayerAction(phone_number || undefined, playerName, 'created');
       }
 
       onClose();
@@ -117,8 +114,8 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500 outline-none" placeholder="joueur@example.com" />
+            <label className="block text-sm font-medium text-slate-300 mb-2">Numéro de téléphone</label>
+            <input type="tel" value={phone_number} onChange={(e) => setPhoneNumber(e.target.value)} className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500 outline-none" placeholder="33678748374" />
           </div>
 
           <div className="space-y-3 pt-2">
