@@ -15,7 +15,6 @@ export interface Player {
   last_name: string;
   photo_url?: string;
   units: number;
-  has_license: boolean;
   phone_number?: string | null;
   manual_payment: number;
   paid_amount: number;
