@@ -81,40 +81,55 @@ export const AperoSchedule = () => {
     fetchData();
   };
 
-  const handleWhatsAppShare = (item: any) => {
-    const dateStr = new Date(item.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+const handleWhatsAppShare = (item: any) => {
+    const dateStr = new Date(item.date + 'T12:00:00').toLocaleDateString('fr-FR', { 
+      weekday: 'long', day: 'numeric', month: 'long' 
+    });
     const responsibles = [item.person1, item.person2, item.person3].filter(p => p);
-    
-    // Fonction de simplification phonétique
-    const simplify = (name: string) => 
-      name.toLowerCase()
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-          .replace(/(.)\1+/g, '$1');
+
+    // Fonction pour calculer la distance entre deux chaînes
+    const getLevenshteinDistance = (a: string, b: string): number => {
+      const tmp = [];
+      for (let i = 0; i <= a.length; i++) tmp[i] = [i];
+      for (let j = 0; j <= b.length; j++) tmp[0][j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+          tmp[i][j] = Math.min(
+            tmp[i - 1][j] + 1,
+            tmp[i][j - 1] + 1,
+            tmp[i - 1][j - 1] + (a[i - 1].toLowerCase() === b[j - 1].toLowerCase() ? 0 : 1)
+          );
+        }
+      }
+      return tmp[a.length][b.length];
+    };
 
     let msg = `*RAPPEL APÉRO DU JEUDI* \n\n`;
     msg += `Salut ! Petit rappel pour l'apéro de ce *${dateStr}*.\n\n`;
     
     if (responsibles.length > 0) {
       const formattedNames = responsibles.map((p) => {
-        const simplifiedP = simplify(p.first_name);
-        
-        // On cherche les joueurs ayant un prénom identique ou phonétiquement proche
-        const competitors = players.filter(player => 
-          player.id !== p.id && simplify(player.first_name) === simplifiedP
-        );
+        // On cherche les joueurs dont le prénom est identique ou très proche (distance <= 1)
+        const competitors = players.filter(player => {
+          if (player.id === p.id) return false;
+          const distance = getLevenshteinDistance(player.first_name, p.first_name);
+          return distance <= 1;
+        });
 
         let displayName = p.first_name;
 
         if (competitors.length > 0) {
-          // Si conflit, on regarde si l'initiale du nom suffit
+          // Si prénom proche trouvé, on vérifie l'initiale du nom
           const initialConflict = competitors.some(other => 
             other.last_name.charAt(0).toUpperCase() === p.last_name.charAt(0).toUpperCase()
           );
 
           if (initialConflict) {
-            displayName = `${p.first_name} ${p.last_name}`; // Durand vs Dupont -> Nom complet
+            // Prénom proche ET même initiale (ex: Théo Durand & Téo Dupont) -> Nom complet
+            displayName = `${p.first_name} ${p.last_name}`;
           } else {
-            displayName = `${p.first_name} ${p.last_name.charAt(0).toUpperCase()}.`; // Richard vs Dupont -> Julien R.
+            // Prénom proche mais initiales différentes -> Prénom + Initiale
+            displayName = `${p.first_name} ${p.last_name.charAt(0).toUpperCase()}.`;
           }
         }
         return `*${displayName}*`;
@@ -123,6 +138,7 @@ export const AperoSchedule = () => {
       const namesText = formattedNames.join(', ').replace(/, ([^,]*)$/, ' et $1');
       msg += `Les responsables désignés sont : ${namesText}.`;
     }
+    
     msg += `\n\nÀ jeudi ! `;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
