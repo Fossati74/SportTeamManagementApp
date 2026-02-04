@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, FineType } from '../../lib/supabase';
-import { Euro, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X, Check, Scale } from 'lucide-react';
 import { logActivity } from '../../lib/activityLog';
 
 interface FineTypeManagerProps {
@@ -9,15 +9,11 @@ interface FineTypeManagerProps {
 
 export const FineTypeManager = ({ onUpdate }: FineTypeManagerProps) => {
   const [fineTypes, setFineTypes] = useState<FineType[]>([]);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
-  const [customLabel, setCustomLabel] = useState('');
-  const [payeTonPack, setPayeTonPack] = useState(false);
+  const [sanction, setSanction] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const formatPrice = (amount: number) => {
-    return amount % 1 === 0 ? `${amount}` : amount.toFixed(2);
-  };
 
   useEffect(() => {
     fetchFineTypes();
@@ -25,165 +21,73 @@ export const FineTypeManager = ({ onUpdate }: FineTypeManagerProps) => {
 
   const fetchFineTypes = async () => {
     try {
-      const { data, error } = await supabase
-        .from('fine_types')
-        .select('*')
-        .order('name', { ascending: true });
-
+      const { data, error } = await supabase.from('fine_types').select('*').order('name', { ascending: true });
       if (error) throw error;
       setFineTypes(data || []);
-    } catch (error) {
-      console.error('Error fetching fine types:', error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const { error } = await supabase
-        .from('fine_types')
-        .insert({
-          name,
-          amount: parseFloat(amount),
-          custom_label: customLabel || null,
-          paye_ton_pack: payeTonPack,
-        });
-
+      const { error } = await supabase.from('fine_types').insert({
+        name, amount: parseFloat(amount), sanction: sanction || null,
+      });
       if (error) throw error;
-
-      await logActivity(
-        'fine_type_added',
-        `Type d'amende "${name}" ajouté (${formatPrice(parseFloat(amount))}€)${customLabel ? ` - "${customLabel}"` : ''}${payeTonPack ? ' + Paye ton pack' : ''}`
-      );
-
-      setName('');
-      setAmount('');
-      setCustomLabel('');
-      setPayeTonPack(false);
-      fetchFineTypes();
-      onUpdate();
-    } catch (error) {
-      console.error('Error adding fine type:', error);
-    } finally {
-      setLoading(false);
-    }
+      await logActivity('fine_type_added', `Type d'amende "${name}" ajouté`);
+      setName(''); setAmount(''); setSanction(''); setShowAddForm(false);
+      fetchFineTypes(); onUpdate();
+    } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Supprimer ce type d\'amende ?')) return;
-
+    if (!confirm('Supprimer ce type ?')) return;
     try {
-      const fineType = fineTypes.find(ft => ft.id === id);
-
-      const { error } = await supabase
-        .from('fine_types')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      await logActivity(
-        'fine_type_deleted',
-        `Type d'amende "${fineType?.name}" supprimé`
-      );
-
-      fetchFineTypes();
-      onUpdate();
-    } catch (error) {
-      console.error('Error deleting fine type:', error);
-    }
+      await supabase.from('fine_types').delete().eq('id', id);
+      fetchFineTypes(); onUpdate();
+    } catch (error) { console.error(error); }
   };
 
   return (
-    <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-      <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-        <Euro size={20} />
-        Types d'amendes
-      </h3>
+    <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
+      <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
+        <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
+          <Scale size={20} className="text-green-400" /> Types d'amendes
+        </h3>
+        <button onClick={() => setShowAddForm(!showAddForm)} className={`p-2 rounded-xl transition-all ${showAddForm ? 'bg-slate-700 text-white' : 'bg-green-600/20 text-green-400 hover:bg-green-600/30'}`}>
+          {showAddForm ? <X size={20} /> : <Plus size={20} />}
+        </button>
+      </div>
 
-      <form onSubmit={handleAdd} className="space-y-3 mb-4">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Nom de l'amende"
-            className="flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            required
-          />
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Montant (€)"
-            className="w-28 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            required
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
-          >
-            <Plus size={18} />
-          </button>
-        </div>
-        <input
-          type="text"
-          value={customLabel}
-          onChange={(e) => setCustomLabel(e.target.value)}
-          placeholder="Texte personnalisé (optionnel)"
-          className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-        />
-        <div className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            id="paye-ton-pack"
-            checked={payeTonPack}
-            onChange={(e) => setPayeTonPack(e.target.checked)}
-            className="w-4 h-4 bg-slate-900 border-slate-600 rounded focus:ring-2 focus:ring-green-500"
-          />
-          <label htmlFor="paye-ton-pack" className="text-sm text-slate-300 cursor-pointer">
-            Paye ton pack
-          </label>
-        </div>
-      </form>
+      <div className="p-6">
+        {showAddForm && (
+          <form onSubmit={handleAdd} className="mb-6 p-4 bg-slate-900 border border-slate-700 rounded-2xl space-y-3">
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom..." className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-green-500" required />
+            <div className="flex gap-2">
+              <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="€" className="w-1/3 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-green-500" required />
+              <input type="text" value={sanction} onChange={(e) => setSanction(e.target.value)} placeholder="Sanction..." className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-green-500" />
+            </div>
+            <button type="submit" disabled={loading} className="w-full bg-green-600 hover:bg-green-500 text-white py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+              <Check size={16} /> Valider
+            </button>
+          </form>
+        )}
 
-      <div className="space-y-2 max-h-48 overflow-y-auto">
-        {fineTypes.map((type) => (
-          <div
-            key={type.id}
-            className="flex justify-between items-center bg-slate-900 px-4 py-2 rounded-lg"
-          >
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-white text-sm">{type.name}</span>
-                {type.paye_ton_pack && (
-                  <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
-                    Pack
-                  </span>
-                )}
+        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+          {fineTypes.map((type) => (
+            <div key={type.id} className="flex justify-between items-center p-3 bg-slate-900/40 rounded-xl border border-slate-700/50 group hover:border-slate-500">
+              <div>
+                <p className="text-white text-sm font-medium">{type.name}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-red-400 text-xs font-bold">{type.amount}€</span>
+                  {type.sanction && <span className="text-[10px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full border border-amber-500/20 font-bold uppercase">• {type.sanction}</span>}
+                </div>
               </div>
-              {type.custom_label && (
-                <span className="text-slate-400 text-xs italic">"{type.custom_label}"</span>
-              )}
+              <button onClick={() => handleDelete(type.id)} className="p-2 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100"><Trash2 size={16} /></button>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-green-400 font-semibold text-sm">
-                {formatPrice(Number(type.amount))} €
-              </span>
-              <button
-                onClick={() => handleDelete(type.id)}
-                className="text-red-400 hover:text-red-300 transition-colors"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

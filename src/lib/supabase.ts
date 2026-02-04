@@ -77,7 +77,7 @@ export interface FineType {
   name: string;
   amount: number;
   custom_label?: string;
-  paye_ton_pack: boolean;
+  sanction?: string | null
   created_at: string;
 }
 

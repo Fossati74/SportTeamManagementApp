@@ -1,33 +1,68 @@
-import { useState, useEffect } from 'react';
-import { supabase, Player, FineType, Fine, ActivityLog, Expense } from '../../lib/supabase';
-import { AlertCircle, Plus, Euro, TrendingUp, Trash2, Bell, Edit, Search } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { FineTypeManager } from './FineTypeManager';
-import { ExpenseManager } from './ExpenseManager';
-import { logActivity } from '../../lib/activityLog';
+import { useState, useEffect } from "react";
+import {
+  supabase,
+  Player,
+  FineType,
+  Fine,
+  ActivityLog,
+  Expense,
+} from "../../lib/supabase";
+import {
+  Plus,
+  TrendingUp,
+  Trash2,
+  Bell,
+  Edit,
+  Search,
+  Calendar,
+  Clock,
+  ShieldAlert,
+  X,
+} from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
+import { FineTypeManager } from "./FineTypeManager";
+import { ExpenseManager } from "./ExpenseManager";
+import { logActivity } from "../../lib/activityLog";
 
 export const FinesManager = () => {
-  const [fines, setFines] = useState<(Fine & { players?: Player; fine_types?: FineType })[]>([]);
+  const [fines, setFines] = useState<
+    (Fine & { players?: Player; fine_types?: FineType })[]
+  >([]);
   const [fineTypes, setFineTypes] = useState<FineType[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPlayer, setSelectedPlayer] = useState('');
-  const [selectedFineType, setSelectedFineType] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
-  const [playerTotals, setPlayerTotals] = useState<{ player: Player; total: number; packs: number }[]>([]);
-  const [showActivityLog, setShowActivityLog] = useState(false);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [editingFine, setEditingFine] = useState<Fine | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingManualPayment, setEditingManualPayment] = useState<string | null>(null);
-  const [manualPaymentValue, setManualPaymentValue] = useState('0');
-  const [editingPaidAmount, setEditingPaidAmount] = useState<string | null>(null);
-  const [paidAmountValue, setPaidAmountValue] = useState('0');
+  const [selectedPlayer, setSelectedPlayer] = useState("");
+  const [selectedFineType, setSelectedFineType] = useState("");
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [notes, setNotes] = useState("");
+  const [playerTotals, setPlayerTotals] = useState<
+    { player: Player; total: number }[]
+  >([]);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingManualPayment, setEditingManualPayment] = useState<
+    string | null
+  >(null);
+  const [manualPaymentValue, setManualPaymentValue] = useState("0");
+  const [editingPaidAmount, setEditingPaidAmount] = useState<string | null>(
+    null,
+  );
+  const [paidAmountValue, setPaidAmountValue] = useState("0");
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const { user } = useAuth();
+  
+  // États pour les filtres de l'historique
+  const [filterPlayer, setFilterPlayer] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const seasonStart = currentMonth >= 9 ? currentYear : currentYear - 1;
+  const seasonLabel = `Saison ${seasonStart}-${seasonStart + 1}`;
 
   useEffect(() => {
     fetchData();
@@ -36,825 +71,521 @@ export const FinesManager = () => {
 
   useEffect(() => {
     calculatePlayerTotals(fines, players);
-  }, [selectedMonth, fines, players]);
+  }, [fines, players, expenses]);
 
   const fetchData = async () => {
     try {
-      const [finesResponse, fineTypesResponse, playersResponse] = await Promise.all([
+      const [finesRes, typesRes, playersRes] = await Promise.all([
         supabase
-          .from('fines')
-          .select('*, players(*), fine_types(*)')
-          .order('date', { ascending: false }),
+          .from("fines")
+          .select("*, players(*), fine_types(*)")
+          .order("date", { ascending: false }),
         supabase
-          .from('fine_types')
-          .select('*')
-          .order('name', { ascending: true }),
+          .from("fine_types")
+          .select("*")
+          .order("name", { ascending: true }),
         supabase
-          .from('players')
-          .select('*')
-          .order('last_name', { ascending: true }),
+          .from("players")
+          .select("*")
+          .order("last_name", { ascending: true }),
       ]);
-
-      if (finesResponse.error) throw finesResponse.error;
-      if (fineTypesResponse.error) throw fineTypesResponse.error;
-      if (playersResponse.error) throw playersResponse.error;
-
-      setFines(finesResponse.data || []);
-      setFineTypes(fineTypesResponse.data || []);
-      setPlayers(playersResponse.data || []);
-
-      calculatePlayerTotals(finesResponse.data || [], playersResponse.data || []);
+      setFines(finesRes.data || []);
+      setFineTypes(typesRes.data || []);
+      setPlayers(playersRes.data || []);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchActivityLogs = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('activity_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      setActivityLogs(data || []);
-    } catch (error) {
-      console.error('Error fetching activity logs:', error);
-    }
-  };
-
   const fetchExpenses = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-      setExpenses(data || []);
-    } catch (error) {
-      console.error('Error fetching expenses:', error);
-    }
+    const { data } = await supabase
+      .from("expenses")
+      .select("*")
+      .order("date", { ascending: false });
+    setExpenses(data || []);
   };
 
-  const calculatePlayerTotals = (finesData: (Fine & { fine_types?: FineType })[], playerData: Player[]) => {
+  const calculatePlayerTotals = (finesData: any[], playerData: Player[]) => {
     const totals: { [key: string]: number } = {};
-    const packs: { [key: string]: number } = {};
-
-    const filteredFines = finesData.filter((fine) => {
-      const fineMonth = fine.date.slice(0, 7);
-      return fineMonth === selectedMonth;
+    finesData.forEach((fine) => {
+      totals[fine.player_id] =
+        (totals[fine.player_id] || 0) + Number(fine.fine_types?.amount || 0);
     });
-
-    filteredFines.forEach((fine) => {
-      const amount = fine.fine_types?.amount || 0;
-      totals[fine.player_id] = (totals[fine.player_id] || 0) + Number(amount);
-
-      if (fine.fine_types?.paye_ton_pack) {
-        packs[fine.player_id] = (packs[fine.player_id] || 0) + 1;
-      }
-    });
-
-    const totalExpenses = getTotalExpenses();
-    const totalPlayers = playerData.length;
-    const expensePerPlayer = totalPlayers > 0 ? Math.ceil(totalExpenses / totalPlayers) : 0;
-
-    const playerTotalsData = playerData
-      .map((player) => {
-        let playerTotal = (totals[player.id] || 0) + (player.manual_payment || 0);
-        debugger
-        if (!player.participates_in_fund) {
-          playerTotal += expensePerPlayer;
-        }
-
-        return {
-          player,
-          total: playerTotal,
-          packs: packs[player.id] || 0,
-        };
+    const totalExp = expenses.reduce((t, e) => t + Number(e.amount), 0);
+    const expPerPlayer =
+      playerData.length > 0 ? Math.ceil(totalExp / playerData.length) : 0;
+    const data = playerData
+      .map((p) => {
+        let pTotal = (totals[p.id] || 0) + (p.manual_payment || 0);
+        if (!p.participates_in_fund) pTotal += expPerPlayer;
+        return { player: p, total: pTotal };
       })
       .sort((a, b) => b.total - a.total);
-
-    setPlayerTotals(playerTotalsData);
+    setPlayerTotals(data);
   };
 
   const handleAddFine = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlayer || !selectedFineType) return;
-
-    try {
-      const player = players.find(p => p.id === selectedPlayer);
-      const fineType = fineTypes.find(ft => ft.id === selectedFineType);
-
-      const { error } = await supabase
-        .from('fines')
-        .insert({
-          player_id: selectedPlayer,
-          fine_type_id: selectedFineType,
-          date: selectedDate,
-          notes: notes || null,
-        });
-
-      if (error) throw error;
-
-      await logActivity(
-        'fine_added',
-        `Amende "${fineType?.name}" attribuée à ${player?.first_name} ${player?.last_name}${fineType?.paye_ton_pack ? ' (+ pack)' : ''}`
-      );
-
-      setSelectedPlayer('');
-      setSelectedFineType('');
-      setNotes('');
+    const { error } = await supabase.from("fines").insert({
+      player_id: selectedPlayer,
+      fine_type_id: selectedFineType,
+      date: selectedDate,
+      notes: notes || null,
+    });
+    if (!error) {
+      setSelectedPlayer("");
+      setSelectedFineType("");
+      setNotes("");
       fetchData();
-    } catch (error) {
-      console.error('Error adding fine:', error);
     }
   };
 
-  const handleEditFine = (fine: Fine & { players?: Player; fine_types?: FineType }) => {
-    setEditingFine(fine);
-    setShowEditModal(true);
-  };
+  const totalPaid = players.reduce((t, p) => t + (p.paid_amount || 0), 0);
+  const totalDue =
+    fines.reduce((t, f) => t + Number(f.fine_types?.amount || 0), 0) +
+    players.reduce((t, p) => t + (p.manual_payment || 0), 0);
+  const totalExpVal = expenses.reduce((t, e) => t + Number(e.amount), 0);
 
-  const handleUpdateFine = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingFine) return;
-
-    try {
-      const player = players.find(p => p.id === editingFine.player_id);
-      const fineType = fineTypes.find(ft => ft.id === editingFine.fine_type_id);
-
-      const { error } = await supabase
-        .from('fines')
-        .update({
-          player_id: editingFine.player_id,
-          fine_type_id: editingFine.fine_type_id,
-          date: editingFine.date,
-          notes: editingFine.notes || null,
-        })
-        .eq('id', editingFine.id);
-
-      if (error) throw error;
-
-      await logActivity(
-        'fine_updated',
-        `Amende "${fineType?.name}" modifiée pour ${player?.first_name} ${player?.last_name}`
-      );
-
-      setShowEditModal(false);
-      setEditingFine(null);
-      fetchData();
-    } catch (error) {
-      console.error('Error updating fine:', error);
-    }
-  };
-
-  const handleDeleteFine = async (id: string) => {
-    if (!confirm('Supprimer cette amende ?')) return;
-
-    try {
-      const fine = fines.find(f => f.id === id);
-
-      const { error } = await supabase
-        .from('fines')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      await logActivity(
-        'fine_deleted',
-        `Amende "${fine?.fine_types?.name}" supprimée pour ${fine?.players?.first_name} ${fine?.players?.last_name}`
-      );
-
-      fetchData();
-    } catch (error) {
-      console.error('Error deleting fine:', error);
-    }
-  };
-
-  const formatPrice = (amount: number) => {
-    return amount;
-  };
-
-  const getCurrentSeason = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-
-    if (month >= 8) {
-      return { start: year, end: year + 1 };
-    } else {
-      return { start: year - 1, end: year };
-    }
-  };
-
-  const isDateInSeason = (dateStr: string, season: { start: number; end: number }) => {
-    const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-
-    if (year === season.start && month >= 8) return true;
-    if (year === season.end && month <= 7) return true;
-
-    return false;
-  };
-
-  const getTotalCagnotte = () => {
-    const currentSeason = getCurrentSeason();
-    const finesTotal = fines
-      .filter((fine) => isDateInSeason(fine.date, currentSeason))
-      .reduce((total, fine) => {
-        return total + Number(fine.fine_types?.amount || 0);
-      }, 0);
-
-    const manualPaymentsTotal = players.reduce((total, player) => {
-      return total + (player.manual_payment || 0);
-    }, 0);
-
-    const totalExpenses = getTotalExpenses();
-    const totalPlayers = players.length;
-    const expensePerPlayer = totalPlayers > 0 ? Math.ceil(totalExpenses / totalPlayers) : 0;
-    const nonParticipatingPlayers = players.filter(p => !p.participates_in_fund).length;
-    const redistributedAmount = nonParticipatingPlayers * expensePerPlayer;
-
-    return finesTotal + manualPaymentsTotal + redistributedAmount;
-  };
-
-  const handleUpdateManualPayment = async (playerId: string, amount: number) => {
-    if (!user) return;
-
-    try {
-      const { error } = await supabase
-        .from('players')
-        .update({ manual_payment: amount })
-        .eq('id', playerId);
-
-      if (error) throw error;
-
-      await logActivity('manual_payment_updated', `Montant manuel modifié pour un joueur: ${formatPrice(amount)} €`);
-      setEditingManualPayment(null);
-      fetchData();
-    } catch (error) {
-      console.error('Error updating manual payment:', error);
-    }
-  };
-
-  const handleUpdatePaidAmount = async (playerId: string, amount: number) => {
-    if (!user) return;
-
-    try {
-      const player = players.find(p => p.id === playerId);
-      const { error } = await supabase
-        .from('players')
-        .update({ paid_amount: amount })
-        .eq('id', playerId);
-
-      if (error) throw error;
-
-      await logActivity(
-        'paid_amount_updated',
-        `Montant payé modifié pour ${player?.first_name} ${player?.last_name}: ${formatPrice(amount)} €`
-      );
-      setEditingPaidAmount(null);
-      fetchData();
-    } catch (error) {
-      console.error('Error updating paid amount:', error);
-    }
-  };
-
-  const startEditManualPayment = (playerId: string, currentAmount: number) => {
-    setEditingManualPayment(playerId);
-    setManualPaymentValue(currentAmount.toString());
-  };
-
-  const cancelEditManualPayment = () => {
-    setEditingManualPayment(null);
-    setManualPaymentValue('0');
-  };
-
-  const startEditPaidAmount = (playerId: string, currentAmount: number) => {
-    setEditingPaidAmount(playerId);
-    setPaidAmountValue(currentAmount.toString());
-  };
-
-  const cancelEditPaidAmount = () => {
-    setEditingPaidAmount(null);
-    setPaidAmountValue('0');
-  };
-
-  const getTotalPaid = () => {
-    return players.reduce((total, player) => total + (player.paid_amount || 0), 0);
-  };
-
-  const getTotalExpenses = () => {
-    return expenses.reduce((total, expense) => total + Number(expense.amount), 0);
-  };
-
-  if (loading) {
+  if (loading)
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+      <div className="flex justify-center py-20">
+        <div className="animate-spin h-10 w-10 border-b-2 border-green-500 rounded-full" />
       </div>
     );
-  }
 
   return (
-    <>
-      <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold text-white">Boîte Noire</h2>
-          <div>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
+    <div className="space-y-6 px-2 sm:px-0 pb-10">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+        <div>
+          <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+            <ShieldAlert size={32} className="text-green-500" /> Boîte Noire
+          </h2>
+          <p className="text-slate-400 font-medium flex items-center gap-2 mt-1">
+            <Calendar size={16} /> {seasonLabel}
+          </p>
         </div>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              setShowActivityLog(true);
-              fetchActivityLogs();
-            }}
-            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            <Bell size={20} />
-            <span>Historique des actions</span>
-          </button>
-          <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-3 rounded-lg">
-            <p className="text-white text-sm font-semibold mb-2">Cagnotte {getCurrentSeason().start}-{getCurrentSeason().end}</p>
-            <div className="space-y-1">
-              <div className="flex justify-between items-center">
-                <span className="text-white text-xs">Total dû:</span>
-                <span className="text-white font-semibold">{formatPrice(getTotalCagnotte())} €</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-white text-xs">Total payé:</span>
-                <span className="text-green-200 font-semibold">{formatPrice(getTotalPaid())} €</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-white text-xs">Total utilisé:</span>
-                <span className="text-red-200 font-semibold">{formatPrice(getTotalExpenses())} €</span>
-              </div>
-              <div className="border-t border-orange-400 pt-1 mt-1 flex justify-between items-center">
-                <span className="text-white text-xs font-bold">Reste:</span>
-                <span className="text-white text-lg font-bold">{formatPrice(getTotalPaid() - getTotalExpenses())} €</span>
-              </div>
-            </div>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full lg:w-auto">
+          <StatCard title="Total Dû" value={`${totalDue} €`} color="text-white" />
+          <StatCard title="Total Payé" value={`${totalPaid} €`} color="text-green-400" />
+          <StatCard title="Dépenses" value={`${totalExpVal} €`} color="text-red-400" />
+          <StatCard title="Solde" value={`${totalPaid - totalExpVal} €`} color="text-white" isHighlight />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {user && (
-          <div className="space-y-6">
-            <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                <Plus size={20} />
-                Attribuer une amende
-              </h3>
-              <form onSubmit={handleAddFine} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Joueur
-                  </label>
-                  <select
-                    value={selectedPlayer}
-                    onChange={(e) => setSelectedPlayer(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    required
-                  >
-                    <option value="">Sélectionner un joueur</option>
-                    {players.filter(player => player.participates_in_fund).map((player) => (
-                      <option key={player.id} value={player.id}>
-                        {player.first_name} {player.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Type d'amende
-                  </label>
-                  <select
-                    value={selectedFineType}
-                    onChange={(e) => setSelectedFineType(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    required
-                  >
-                    <option value="">Sélectionner un type</option>
-                    {fineTypes.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.name} - {type.amount}€
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Notes (optionnel)
-                  </label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-                    rows={3}
-                  />
-                </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-stretch">
+        <div className="lg:col-span-1 space-y-6">
+          {user && (
+            <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
+                <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
+                  <Bell size={20} className="text-green-400" /> Nouvelle amende
+                </h3>
                 <button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-emerald-600 transition-all"
+                  onClick={() => setShowAddForm(!showAddForm)}
+                  className={`p-2 rounded-xl transition-all ${showAddForm ? "bg-slate-700 text-white" : "bg-green-600/20 text-green-400 hover:bg-green-600/30"}`}
                 >
-                  Attribuer l'amende
+                  {showAddForm ? <X size={20} /> : <Plus size={20} />}
                 </button>
-              </form>
+              </div>
+              {showAddForm && (
+                <div className="p-6">
+                  <form onSubmit={handleAddFine} className="space-y-4">
+                    <select
+                      value={selectedPlayer}
+                      onChange={(e) => setSelectedPlayer(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                      required
+                    >
+                      <option value="">Joueur...</option>
+                      {players
+                        .filter((p) => p.participates_in_fund)
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.first_name} {p.last_name}
+                          </option>
+                        ))}
+                    </select>
+                    <select
+                      value={selectedFineType}
+                      onChange={(e) => setSelectedFineType(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                      required
+                    >
+                      <option value="">Amende...</option>
+                      {fineTypes.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.amount}€)
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                      required
+                    />
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Notes..."
+                      className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-green-500 outline-none resize-none"
+                      rows={2}
+                    />
+                    <button
+                      type="submit"
+                      className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg"
+                    >
+                      Enregistrer
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+          {user && <FineTypeManager onUpdate={fetchData} />}
+          {user && (
+            <ExpenseManager
+              onUpdate={() => {
+                fetchData();
+                fetchExpenses();
+              }}
+            />
+          )}
+        </div>
+
+        <div className="lg:col-span-2 lg:relative min-h-[500px]">
+          <div className="lg:absolute lg:inset-0 bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/50 shrink-0">
+              <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
+                <TrendingUp size={20} className="text-green-500" /> État des
+                amendes par joueur
+              </h3>
+              <div className="relative w-full sm:w-64">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                  size={16}
+                />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher..."
+                  className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:ring-2 focus:ring-green-500 outline-none"
+                />
+              </div>
             </div>
 
-            {user && <FineTypeManager onUpdate={fetchData} />}
-            {user && <ExpenseManager onUpdate={() => { fetchData(); fetchExpenses(); }} />}
-          </div>
-        )}
-
-        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-            <TrendingUp size={20} />
-            Dû par joueur
-          </h3>
-
-          <div className="mb-4 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher un joueur..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {playerTotals
-              .filter(({ player }) => {
-                const fullName = `${player.first_name} ${player.last_name}`.toLowerCase();
-                return fullName.includes(searchQuery.toLowerCase());
-              })
-              .map(({ player, total, packs }) => (
-              <div
-                key={player.id}
-                className="bg-slate-900 px-4 py-3 rounded-lg"
-              >
-                <div className="flex justify-between items-center">
-                  <span className="text-white">
-                    {player.first_name} {player.last_name}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    {packs > 0 && (
-                      <span className="text-amber-400 text-sm font-medium">
-                        {packs} pack{packs > 1 ? 's' : ''}
-                      </span>
-                    )}
-                    <span className={`font-semibold ${total > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                      {formatPrice(total)} €
-                    </span>
-                    {user && (
-                      <button
-                        onClick={() => startEditManualPayment(player.id, player.manual_payment || 0)}
-                        className="text-slate-400 hover:text-white transition-colors"
-                        title="Modifier montant manuel"
-                      >
-                        <Edit size={16} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {editingManualPayment === player.id && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={manualPaymentValue}
-                      onChange={(e) => setManualPaymentValue(e.target.value)}
-                      className="flex-1 bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-600 focus:border-green-500 focus:outline-none text-sm"
-                      placeholder="Montant manuel"
-                    />
-                    <button
-                      onClick={() => handleUpdateManualPayment(player.id, parseFloat(manualPaymentValue) || 0)}
-                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm transition-colors"
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {playerTotals
+                  .filter(({ player }) =>
+                    `${player.first_name} ${player.last_name}`
+                      .toLowerCase()
+                      .includes(searchQuery.toLowerCase()),
+                  )
+                  .map(({ player, total }) => (
+                    <div
+                      key={player.id}
+                      className="bg-slate-900/50 rounded-2xl p-4 border border-slate-700/50 group"
                     >
-                      ✓
-                    </button>
-                    <button
-                      onClick={cancelEditManualPayment}
-                      className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded text-sm transition-colors"
-                    >
-                      ✗
-                    </button>
-                  </div>
-                )}
-
-                <div className="mt-2 pt-2 border-t border-slate-700 flex items-center justify-between">
-                  <span className="text-slate-400 text-sm">Déjà payé:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-400 font-medium text-sm">
-                      {formatPrice(player.paid_amount || 0)} €
-                    </span>
-                    {user && (
-                      <button
-                        onClick={() => startEditPaidAmount(player.id, player.paid_amount || 0)}
-                        className="text-slate-400 hover:text-white transition-colors"
-                        title="Modifier montant payé"
-                      >
-                        <Edit size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {editingPaidAmount === player.id && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={paidAmountValue}
-                      onChange={(e) => setPaidAmountValue(e.target.value)}
-                      className="flex-1 bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-600 focus:border-green-500 focus:outline-none text-sm"
-                      placeholder="Montant payé"
-                    />
-                    <button
-                      onClick={() => handleUpdatePaidAmount(player.id, parseFloat(paidAmountValue) || 0)}
-                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm transition-colors"
-                    >
-                      ✓
-                    </button>
-                    <button
-                      onClick={cancelEditPaidAmount}
-                      className="bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded text-sm transition-colors"
-                    >
-                      ✗
-                    </button>
-                  </div>
-                )}
-
-                {player.manual_payment > 0 && editingManualPayment !== player.id && (
-                  <div className="mt-1 text-xs text-slate-400">
-                    (dont {formatPrice(player.manual_payment)} € ajusté manuellement)
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {fines.length === 0 ? (
-        <div className="bg-slate-800 rounded-lg p-12 text-center border border-slate-700">
-          <AlertCircle size={48} className="mx-auto text-slate-600 mb-4" />
-          <p className="text-slate-400">Aucune amende enregistrée</p>
-        </div>
-      ) : (
-        <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-900">
-                <tr>
-                  <th className="text-left px-6 py-4 text-slate-300 font-semibold">Date</th>
-                  <th className="text-left px-6 py-4 text-slate-300 font-semibold">Joueur</th>
-                  <th className="text-left px-6 py-4 text-slate-300 font-semibold">Type</th>
-                  <th className="text-left px-6 py-4 text-slate-300 font-semibold">Montant</th>
-                  <th className="text-left px-6 py-4 text-slate-300 font-semibold">Notes</th>
-                  {user && <th className="text-right px-6 py-4 text-slate-300 font-semibold">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700">
-                {fines.filter((fine) => fine.date.slice(0, 7) === selectedMonth).map((fine) => (
-                  <tr key={fine.id} className="hover:bg-slate-700/50 transition-colors">
-                    <td className="px-6 py-4 text-white">
-                      {new Date(fine.date).toLocaleDateString('fr-FR')}
-                    </td>
-                    <td className="px-6 py-4 text-white">
-                      {fine.players?.first_name} {fine.players?.last_name}
-                    </td>
-                    <td className="px-6 py-4 text-white">
-                      {fine.fine_types?.name}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-red-400 font-semibold">
-                          {formatPrice(Number(fine.fine_types?.amount || 0))} €
-                        </span>
-                        {fine.fine_types?.paye_ton_pack && (
-                          <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-1 rounded">
-                            + pack
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-400">
-                      {fine.notes || '-'}
-                    </td>
-                    {user && (
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex gap-2 justify-end">
-                          <button
-                            onClick={() => handleEditFine(fine)}
-                            className="text-blue-400 hover:text-blue-300 transition-colors"
+                      <div className="flex justify-between items-start mb-3">
+                        <p className="text-white font-bold text-sm">
+                          {player.first_name} {player.last_name}
+                        </p>
+                        <div className="text-right">
+                          <p
+                            className={`font-black text-lg ${total > 0 ? "text-red-400" : "text-green-400"}`}
                           >
-                            <Edit size={18} />
+                            {total} €
+                          </p>
+                          {user && (
+                            <button
+                              onClick={() => {
+                                setEditingManualPayment(player.id);
+                                setManualPaymentValue(
+                                  player.manual_payment?.toString() || "0",
+                                );
+                              }}
+                              className="text-[10px] text-slate-500 hover:text-white underline"
+                            >
+                              Ajuster
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {editingManualPayment === player.id && (
+                        <div className="flex gap-2 mb-3">
+                          <input
+                            type="number"
+                            value={manualPaymentValue}
+                            onChange={(e) =>
+                              setManualPaymentValue(e.target.value)
+                            }
+                            className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-xs text-white"
+                          />
+                          <button
+                            onClick={() => {
+                              supabase
+                                .from("players")
+                                .update({
+                                  manual_payment:
+                                    parseFloat(manualPaymentValue) || 0,
+                                })
+                                .eq("id", player.id)
+                                .then(() => {
+                                  setEditingManualPayment(null);
+                                  fetchData();
+                                });
+                            }}
+                            className="bg-green-600 px-2 rounded text-white text-xs"
+                          >
+                            OK
                           </button>
                           <button
-                            onClick={() => handleDeleteFine(fine.id)}
-                            className="text-red-400 hover:text-red-300 transition-colors"
+                            onClick={() => setEditingManualPayment(null)}
+                            className="bg-slate-700 px-2 rounded text-white text-xs"
                           >
-                            <Trash2 size={18} />
+                            <X size={12} />
                           </button>
                         </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      )}
+
+                      <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase">
+                          Réglé :
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-green-500">
+                            {player.paid_amount || 0} €
+                          </span>
+                          {user && (
+                            <button
+                              onClick={() => {
+                                setEditingPaidAmount(player.id);
+                                setPaidAmountValue(
+                                  player.paid_amount?.toString() || "0",
+                                );
+                              }}
+                              className="p-1 text-slate-600 hover:text-white"
+                            >
+                              <Edit size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {editingPaidAmount === player.id && (
+                        <div className="flex gap-2 mt-2">
+                          <input
+                            type="number"
+                            value={paidAmountValue}
+                            onChange={(e) => setPaidAmountValue(e.target.value)}
+                            className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-xs text-white"
+                          />
+                          <button
+                            onClick={() => {
+                              supabase
+                                .from("players")
+                                .update({
+                                  paid_amount: parseFloat(paidAmountValue) || 0,
+                                })
+                                .eq("id", player.id)
+                                .then(() => {
+                                  setEditingPaidAmount(null);
+                                  fetchData();
+                                });
+                            }}
+                            className="bg-green-600 px-2 rounded text-white text-xs"
+                          >
+                            OK
+                          </button>
+                          <button
+                            onClick={() => setEditingPaidAmount(null)}
+                            className="bg-slate-700 px-2 rounded text-white text-xs"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
           </div>
         </div>
-      )}
-    </div>
+      </div>
 
-    {showActivityLog && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-slate-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden border border-slate-700">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-white text-xl font-semibold flex items-center gap-2">
-              <Bell size={24} />
-              Historique des actions
+      {/* HISTORIQUE AVEC FILTRES CROISÉS */}
+      <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
+        <div className="p-6 bg-slate-900/50 border-b border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-2">
+            <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
+              <Clock size={20} className="text-green-400" /> Historique complet des amendes
             </h3>
-            <button
-              onClick={() => setShowActivityLog(false)}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              ✕
-            </button>
           </div>
 
-          <div className="overflow-y-auto max-h-[60vh]">
-            {activityLogs.length === 0 ? (
-              <div className="text-center py-8 text-slate-400">
-                Aucune activité enregistrée
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {activityLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="bg-slate-900 rounded-lg p-4 border border-slate-700"
-                  >
-                    <p className="text-white text-sm">{log.description}</p>
-                    <p className="text-slate-400 text-xs mt-1">
-                      {new Date(log.created_at).toLocaleDateString('fr-FR', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                  </div>
-                ))}
-              </div>
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <select
+              value={filterPlayer}
+              onChange={(e) => setFilterPlayer(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-[11px] font-bold text-white outline-none focus:ring-2 focus:ring-green-500 transition-all cursor-pointer"
+            >
+              <option value="">Tous les joueurs</option>
+              {players.filter(p => p.participates_in_fund).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.first_name} {p.last_name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-[11px] font-bold text-white outline-none focus:ring-2 focus:ring-green-500 transition-all cursor-pointer"
+            >
+              <option value="">Toutes les amendes</option>
+              {fineTypes.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-[11px] font-bold text-white outline-none focus:ring-2 focus:ring-green-500 transition-all cursor-pointer"
+            >
+              <option value="desc">Plus récent ↓</option>
+              <option value="asc">Plus ancien ↑</option>
+            </select>
+
+            {(filterPlayer || filterType) && (
+              <button 
+                onClick={() => { setFilterPlayer(''); setFilterType(''); }}
+                className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+                title="Réinitialiser"
+              >
+                <X size={18} />
+              </button>
             )}
           </div>
         </div>
-      </div>
-    )}
 
-    {showEditModal && editingFine && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-slate-800 rounded-lg p-6 max-w-md w-full mx-4 border border-slate-700">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-white text-xl font-semibold flex items-center gap-2">
-              <Edit size={24} />
-              Modifier l'amende
-            </h3>
-            <button
-              onClick={() => {
-                setShowEditModal(false);
-                setEditingFine(null);
-              }}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              ✕
-            </button>
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-900/30 text-slate-500 text-[10px] uppercase tracking-widest">
+                <th className="px-6 py-4 font-bold">Date</th>
+                <th className="px-6 py-4 font-bold">Joueur</th>
+                <th className="px-6 py-4 font-bold">Type</th>
+                <th className="px-6 py-4 font-bold">Sanction</th>
+                <th className="px-6 py-4 font-bold text-right">Montant</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {(() => {
+                const filteredFines = fines
+                  .filter((fine) => {
+                    const matchPlayer = filterPlayer ? fine.player_id === filterPlayer : true;
+                    const matchType = filterType ? fine.fine_type_id === filterType : true;
+                    return matchPlayer && matchType;
+                  })
+                  .sort((a, b) => {
+                    const dateA = new Date(a.date).getTime();
+                    const dateB = new Date(b.date).getTime();
+                    return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+                  });
 
-          <form onSubmit={handleUpdateFine} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Joueur
-              </label>
-              <select
-                value={editingFine.player_id}
-                onChange={(e) => setEditingFine({ ...editingFine, player_id: e.target.value })}
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-              >
-                <option value="">Sélectionner un joueur</option>
-                {players.filter(player => player.participates_in_fund).map((player) => (
-                  <option key={player.id} value={player.id}>
-                    {player.first_name} {player.last_name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                if (filteredFines.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-500 italic text-sm">
+                        <div className="flex flex-col items-center gap-2">
+                          <Search size={24} className="opacity-20" />
+                          Aucune amende ne correspond à ces critères.
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
 
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Type d'amende
-              </label>
-              <select
-                value={editingFine.fine_type_id}
-                onChange={(e) => setEditingFine({ ...editingFine, fine_type_id: e.target.value })}
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-              >
-                <option value="">Sélectionner un type</option>
-                {fineTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name} - {type.amount}€
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Date
-              </label>
-              <input
-                type="date"
-                value={editingFine.date}
-                onChange={(e) => setEditingFine({ ...editingFine, date: e.target.value })}
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Notes (optionnel)
-              </label>
-              <textarea
-                value={editingFine.notes || ''}
-                onChange={(e) => setEditingFine({ ...editingFine, notes: e.target.value })}
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-                rows={3}
-              />
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditingFine(null);
-                }}
-                className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                Enregistrer
-              </button>
-            </div>
-          </form>
+                return filteredFines.map((fine) => (
+                  <tr key={fine.id} className="text-sm hover:bg-slate-700/20 transition-colors group">
+                    <td className="px-6 py-4 text-slate-400 whitespace-nowrap">
+                      {new Date(fine.date).toLocaleDateString("fr-FR")}
+                    </td>
+                    <td className="px-6 py-4 text-white font-medium">
+                      {fine.players?.first_name} {fine.players?.last_name}
+                    </td>
+                    <td className="px-6 py-4 text-slate-300">
+                      {fine.fine_types?.name}
+                    </td>
+                    <td className="px-6 py-4">
+                      {fine.fine_types?.sanction && (
+                        <span className="bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full text-[10px] font-bold border border-amber-500/20 uppercase whitespace-nowrap">
+                          {fine.fine_types.sanction}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        <span className="text-red-400 font-bold">
+                          {fine.fine_types?.amount} €
+                        </span>
+                        {user && (
+                          <button
+                            onClick={() => {
+                              if (confirm("Supprimer ?"))
+                                supabase
+                                  .from("fines")
+                                  .delete()
+                                  .eq("id", fine.id)
+                                  .then(fetchData);
+                            }}
+                            className="p-1 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ));
+              })()}
+            </tbody>
+          </table>
         </div>
       </div>
-    )}
-    </>
+    </div>
   );
 };
+
+const StatCard = ({
+  title,
+  value,
+  color,
+  isHighlight,
+}: {
+  title: string;
+  value: string;
+  color: string;
+  isHighlight?: boolean;
+}) => (
+  <div
+    className={`${isHighlight ? "bg-gradient-to-br from-green-600 to-orange-600" : "bg-slate-800"} p-4 rounded-2xl border border-slate-700/50 flex flex-col items-center text-center justify-center`}
+  >
+    <p
+      className={`text-[10px] ${isHighlight ? "text-orange-100" : "text-slate-400"} font-bold uppercase tracking-wider mb-1`}
+    >
+      {title}
+    </p>
+    <p className={`text-xl font-black ${color}`}>{value}</p>
+  </div>
+);
