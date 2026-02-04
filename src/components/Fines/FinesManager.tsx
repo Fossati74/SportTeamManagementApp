@@ -53,7 +53,6 @@ export const FinesManager = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const { user } = useAuth();
   
-  // États pour les filtres de l'historique
   const [filterPlayer, setFilterPlayer] = useState("");
   const [filterType, setFilterType] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
@@ -177,8 +176,9 @@ export const FinesManager = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-stretch">
-        <div className="lg:col-span-1 space-y-6">
-          {user && (
+        {/* COLONNE GAUCHE (Visible uniquement en Admin) */}
+        {user && (
+          <div className="lg:col-span-1 space-y-6">
             <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
               <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
                 <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
@@ -201,13 +201,9 @@ export const FinesManager = () => {
                       required
                     >
                       <option value="">Joueur...</option>
-                      {players
-                        .filter((p) => p.participates_in_fund)
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.first_name} {p.last_name}
-                          </option>
-                        ))}
+                      {players.filter((p) => p.participates_in_fund).map((p) => (
+                        <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
+                      ))}
                     </select>
                     <select
                       value={selectedFineType}
@@ -217,9 +213,7 @@ export const FinesManager = () => {
                     >
                       <option value="">Amende...</option>
                       {fineTypes.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} ({t.amount}€)
-                        </option>
+                        <option key={t.id} value={t.id}>{t.name} ({t.amount}€)</option>
                       ))}
                     </select>
                     <input
@@ -236,40 +230,25 @@ export const FinesManager = () => {
                       className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-green-500 outline-none resize-none"
                       rows={2}
                     />
-                    <button
-                      type="submit"
-                      className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg"
-                    >
-                      Enregistrer
-                    </button>
+                    <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg">Enregistrer</button>
                   </form>
                 </div>
               )}
             </div>
-          )}
-          {user && <FineTypeManager onUpdate={fetchData} />}
-          {user && (
-            <ExpenseManager
-              onUpdate={() => {
-                fetchData();
-                fetchExpenses();
-              }}
-            />
-          )}
-        </div>
+            <FineTypeManager onUpdate={fetchData} />
+            <ExpenseManager onUpdate={() => { fetchData(); fetchExpenses(); }} />
+          </div>
+        )}
 
-        <div className="lg:col-span-2 lg:relative min-h-[500px]">
+        {/* SECTION ETAT DES DETTES (Largeur dynamique) */}
+        <div className={`${user ? "lg:col-span-2" : "lg:col-span-3"} lg:relative min-h-[500px]`}>
           <div className="lg:absolute lg:inset-0 bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden flex flex-col">
             <div className="p-6 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/50 shrink-0">
               <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
-                <TrendingUp size={20} className="text-green-500" /> État des
-                amendes par joueur
+                <TrendingUp size={20} className="text-green-500" /> État des amendes par joueur
               </h3>
               <div className="relative w-full sm:w-64">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
-                  size={16}
-                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                 <input
                   type="text"
                   value={searchQuery}
@@ -281,35 +260,22 @@ export const FinesManager = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`grid grid-cols-1 ${user ? 'md:grid-cols-2' : 'md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
                 {playerTotals
                   .filter(({ player }) =>
-                    `${player.first_name} ${player.last_name}`
-                      .toLowerCase()
-                      .includes(searchQuery.toLowerCase()),
+                    `${player.first_name} ${player.last_name}`.toLowerCase().includes(searchQuery.toLowerCase())
                   )
                   .map(({ player, total }) => (
-                    <div
-                      key={player.id}
-                      className="bg-slate-900/50 rounded-2xl p-4 border border-slate-700/50 group"
-                    >
+                    <div key={player.id} className="bg-slate-900/50 rounded-2xl p-4 border border-slate-700/50 group">
                       <div className="flex justify-between items-start mb-3">
-                        <p className="text-white font-bold text-sm">
-                          {player.first_name} {player.last_name}
-                        </p>
+                        <p className="text-white font-bold text-sm">{player.first_name} {player.last_name}</p>
                         <div className="text-right">
-                          <p
-                            className={`font-black text-lg ${total > 0 ? "text-red-400" : "text-green-400"}`}
-                          >
-                            {total} €
-                          </p>
+                          <p className={`font-black text-lg ${total > 0 ? "text-red-400" : "text-green-400"}`}>{total} €</p>
                           {user && (
                             <button
                               onClick={() => {
                                 setEditingManualPayment(player.id);
-                                setManualPaymentValue(
-                                  player.manual_payment?.toString() || "0",
-                                );
+                                setManualPaymentValue(player.manual_payment?.toString() || "0");
                               }}
                               className="text-[10px] text-slate-500 hover:text-white underline"
                             >
@@ -324,58 +290,34 @@ export const FinesManager = () => {
                           <input
                             type="number"
                             value={manualPaymentValue}
-                            onChange={(e) =>
-                              setManualPaymentValue(e.target.value)
-                            }
+                            onChange={(e) => setManualPaymentValue(e.target.value)}
                             className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1 text-xs text-white"
                           />
                           <button
                             onClick={() => {
-                              supabase
-                                .from("players")
-                                .update({
-                                  manual_payment:
-                                    parseFloat(manualPaymentValue) || 0,
-                                })
-                                .eq("id", player.id)
-                                .then(() => {
-                                  setEditingManualPayment(null);
-                                  fetchData();
-                                });
+                              supabase.from("players").update({ manual_payment: parseFloat(manualPaymentValue) || 0 }).eq("id", player.id).then(() => {
+                                setEditingManualPayment(null);
+                                fetchData();
+                              });
                             }}
                             className="bg-green-600 px-2 rounded text-white text-xs"
-                          >
-                            OK
-                          </button>
-                          <button
-                            onClick={() => setEditingManualPayment(null)}
-                            className="bg-slate-700 px-2 rounded text-white text-xs"
-                          >
-                            <X size={12} />
-                          </button>
+                          >OK</button>
+                          <button onClick={() => setEditingManualPayment(null)} className="bg-slate-700 px-2 rounded text-white text-xs"><X size={12} /></button>
                         </div>
                       )}
 
                       <div className="flex justify-between items-center pt-3 border-t border-slate-800">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase">
-                          Réglé :
-                        </span>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase">Réglé :</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-green-500">
-                            {player.paid_amount || 0} €
-                          </span>
+                          <span className="text-xs font-bold text-green-500">{player.paid_amount || 0} €</span>
                           {user && (
                             <button
                               onClick={() => {
                                 setEditingPaidAmount(player.id);
-                                setPaidAmountValue(
-                                  player.paid_amount?.toString() || "0",
-                                );
+                                setPaidAmountValue(player.paid_amount?.toString() || "0");
                               }}
                               className="p-1 text-slate-600 hover:text-white"
-                            >
-                              <Edit size={12} />
-                            </button>
+                            ><Edit size={12} /></button>
                           )}
                         </div>
                       </div>
@@ -390,27 +332,14 @@ export const FinesManager = () => {
                           />
                           <button
                             onClick={() => {
-                              supabase
-                                .from("players")
-                                .update({
-                                  paid_amount: parseFloat(paidAmountValue) || 0,
-                                })
-                                .eq("id", player.id)
-                                .then(() => {
-                                  setEditingPaidAmount(null);
-                                  fetchData();
-                                });
+                              supabase.from("players").update({ paid_amount: parseFloat(paidAmountValue) || 0 }).eq("id", player.id).then(() => {
+                                setEditingPaidAmount(null);
+                                fetchData();
+                              });
                             }}
                             className="bg-green-600 px-2 rounded text-white text-xs"
-                          >
-                            OK
-                          </button>
-                          <button
-                            onClick={() => setEditingPaidAmount(null)}
-                            className="bg-slate-700 px-2 rounded text-white text-xs"
-                          >
-                            <X size={12} />
-                          </button>
+                          >OK</button>
+                          <button onClick={() => setEditingPaidAmount(null)} className="bg-slate-700 px-2 rounded text-white text-xs"><X size={12} /></button>
                         </div>
                       )}
                     </div>
@@ -421,7 +350,7 @@ export const FinesManager = () => {
         </div>
       </div>
 
-      {/* HISTORIQUE AVEC FILTRES CROISÉS */}
+      {/* HISTORIQUE */}
       <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
         <div className="p-6 bg-slate-900/50 border-b border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-2">
@@ -429,7 +358,6 @@ export const FinesManager = () => {
               <Clock size={20} className="text-green-400" /> Historique complet des amendes
             </h3>
           </div>
-
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             <select
               value={filterPlayer}
@@ -438,12 +366,9 @@ export const FinesManager = () => {
             >
               <option value="">Tous les joueurs</option>
               {players.filter(p => p.participates_in_fund).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.first_name} {p.last_name}
-                </option>
+                <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
               ))}
             </select>
-
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
@@ -451,12 +376,9 @@ export const FinesManager = () => {
             >
               <option value="">Toutes les amendes</option>
               {fineTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
+                <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
-
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
@@ -465,15 +387,8 @@ export const FinesManager = () => {
               <option value="desc">Plus récent ↓</option>
               <option value="asc">Plus ancien ↑</option>
             </select>
-
             {(filterPlayer || filterType) && (
-              <button 
-                onClick={() => { setFilterPlayer(''); setFilterType(''); }}
-                className="p-2 text-slate-400 hover:text-red-400 transition-colors"
-                title="Réinitialiser"
-              >
-                <X size={18} />
-              </button>
+              <button onClick={() => { setFilterPlayer(''); setFilterType(''); }} className="p-2 text-slate-400 hover:text-red-400"><X size={18} /></button>
             )}
           </div>
         </div>
@@ -518,41 +433,19 @@ export const FinesManager = () => {
 
                 return filteredFines.map((fine) => (
                   <tr key={fine.id} className="text-sm hover:bg-slate-700/20 transition-colors group">
-                    <td className="px-6 py-4 text-slate-400 whitespace-nowrap">
-                      {new Date(fine.date).toLocaleDateString("fr-FR")}
-                    </td>
-                    <td className="px-6 py-4 text-white font-medium">
-                      {fine.players?.first_name} {fine.players?.last_name}
-                    </td>
-                    <td className="px-6 py-4 text-slate-300">
-                      {fine.fine_types?.name}
-                    </td>
+                    <td className="px-6 py-4 text-slate-400 whitespace-nowrap">{new Date(fine.date).toLocaleDateString("fr-FR")}</td>
+                    <td className="px-6 py-4 text-white font-medium">{fine.players?.first_name} {fine.players?.last_name}</td>
+                    <td className="px-6 py-4 text-slate-300">{fine.fine_types?.name}</td>
                     <td className="px-6 py-4">
                       {fine.fine_types?.sanction && (
-                        <span className="bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full text-[10px] font-bold border border-amber-500/20 uppercase whitespace-nowrap">
-                          {fine.fine_types.sanction}
-                        </span>
+                        <span className="bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full text-[10px] font-bold border border-amber-500/20 uppercase whitespace-nowrap">{fine.fine_types.sanction}</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-3">
-                        <span className="text-red-400 font-bold">
-                          {fine.fine_types?.amount} €
-                        </span>
+                        <span className="text-red-400 font-bold">{fine.fine_types?.amount} €</span>
                         {user && (
-                          <button
-                            onClick={() => {
-                              if (confirm("Supprimer ?"))
-                                supabase
-                                  .from("fines")
-                                  .delete()
-                                  .eq("id", fine.id)
-                                  .then(fetchData);
-                            }}
-                            className="p-1 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <button onClick={() => { if (confirm("Supprimer ?")) supabase.from("fines").delete().eq("id", fine.id).then(fetchData); }} className="p-1 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={14} /></button>
                         )}
                       </div>
                     </td>
@@ -567,25 +460,9 @@ export const FinesManager = () => {
   );
 };
 
-const StatCard = ({
-  title,
-  value,
-  color,
-  isHighlight,
-}: {
-  title: string;
-  value: string;
-  color: string;
-  isHighlight?: boolean;
-}) => (
-  <div
-    className={`${isHighlight ? "bg-gradient-to-br from-green-600 to-orange-600" : "bg-slate-800"} p-4 rounded-2xl border border-slate-700/50 flex flex-col items-center text-center justify-center`}
-  >
-    <p
-      className={`text-[10px] ${isHighlight ? "text-orange-100" : "text-slate-400"} font-bold uppercase tracking-wider mb-1`}
-    >
-      {title}
-    </p>
+const StatCard = ({ title, value, color, isHighlight }: { title: string; value: string; color: string; isHighlight?: boolean; }) => (
+  <div className={`${isHighlight ? "bg-gradient-to-br from-green-600 to-orange-600" : "bg-slate-800"} p-4 rounded-2xl border border-slate-700/50 flex flex-col items-center text-center justify-center`}>
+    <p className={`text-[10px] ${isHighlight ? "text-orange-100" : "text-slate-400"} font-bold uppercase tracking-wider mb-1`}>{title}</p>
     <p className={`text-xl font-black ${color}`}>{value}</p>
   </div>
 );
