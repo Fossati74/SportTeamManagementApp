@@ -23,13 +23,15 @@ function AppContent() {
 
   if (showLogin) {
     return (
-      <div>
-        <LoginForm />
+      <div className="relative">
+        {/* On passe la fonction pour fermer le login après succès */}
+        <LoginForm onSuccess={() => setShowLogin(false)} />
+        
         <button
           onClick={() => setShowLogin(false)}
-          className="fixed top-4 left-4 text-slate-400 hover:text-white transition-colors text-sm"
+          className="fixed top-6 left-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-bold uppercase tracking-widest bg-slate-800/50 px-4 py-2 rounded-xl border border-slate-700 backdrop-blur-sm"
         >
-          ← Retour
+          <span>←</span> Retour
         </button>
       </div>
     );
@@ -37,18 +39,12 @@ function AppContent() {
 
   const renderView = () => {
     switch (currentView) {
-      case 'players':
-        return <PlayerList />;
-      case 'apero':
-        return <AperoSchedule />;
-      case 'matches':
-        return <MatchSchedule />;
-      case 'carpool':
-        return <CarpoolManager />;
-      case 'fines':
-        return <FinesManager />;
-      default:
-        return <PlayerList />;
+      case 'players': return <PlayerList />;
+      case 'apero': return <AperoSchedule />;
+      case 'matches': return <MatchSchedule />;
+      case 'carpool': return <CarpoolManager />;
+      case 'fines': return <FinesManager />;
+      default: return <PlayerList />;
     }
   };
 
