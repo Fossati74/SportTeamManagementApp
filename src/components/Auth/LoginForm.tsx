@@ -21,7 +21,7 @@ export const LoginForm = () => {
       } else {
         await signIn(email, password);
       }
-      window.location.href = '/';
+      window.history.back();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue');
     } finally {
