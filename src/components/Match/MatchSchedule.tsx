@@ -116,11 +116,13 @@ export const MatchSchedule = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-stretch">
         <div className="lg:col-span-2">
-          <div className="bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700 shadow-xl h-full flex flex-col">
-            <h3 className="text-white font-bold mb-6 flex items-center gap-2 underline decoration-green-500 underline-offset-8">
-              <Calendar size={20} className="text-green-500" /> Calendrier des week-ends
-            </h3>
-            <div className="space-y-4">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden h-full flex flex-col">
+            <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 shrink-0">
+              <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
+                <Calendar size={20} className="text-green-400" /> Calendrier des tables de marque
+              </h3>
+            </div>
+            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
               {nextWeekends.map((weekend) => (
                 <WeekendRow
                   key={weekend.saturday} 
@@ -138,16 +140,18 @@ export const MatchSchedule = () => {
         </div>
 
         <div className="lg:col-span-1 lg:relative min-h-[400px]">
-          <div className="lg:absolute lg:inset-0 bg-slate-800 rounded-2xl p-6 border border-slate-700 h-full shadow-xl flex flex-col overflow-hidden">
-            <h3 className="text-white font-bold mb-4 flex items-center gap-2 shrink-0">
-              <TrendingUp size={20} className="text-green-500" /> Qui a le moins fait
-            </h3>
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          <div className="lg:absolute lg:inset-0 bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 shrink-0">
+              <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
+                <TrendingUp size={20} className="text-green-400" /> Fréquence table de marque
+              </h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0">
               <div className="space-y-2">
                 {sortedPlayersByStats.map((player) => (
-                  <div key={player.id} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 hover:border-slate-500 transition-colors">
-                    <span className="text-slate-300 text-sm">{player.first_name} {player.last_name}</span>
-                    <span className="text-green-400 font-bold text-xs">{playerStats[player.id] || 0}x</span>
+                  <div key={player.id} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 hover:border-slate-500 transition-colors group">
+                    <span className="text-slate-300 text-sm font-medium">{player.first_name} {player.last_name}</span>
+                    <span className="bg-green-500/10 text-green-400 font-bold text-xs px-2 py-1 rounded-lg border border-green-500/20">{playerStats[player.id] || 0}x</span>
                   </div>
                 ))}
               </div>
@@ -157,10 +161,10 @@ export const MatchSchedule = () => {
       </div>
 
       <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
-        <div className="px-6 py-4 bg-slate-900/50 border-b border-slate-700 flex justify-between items-center">
+        <div className="p-6 bg-slate-900/50 border-b border-slate-700">
           <div className="flex items-center gap-2">
-            <Clock size={18} className="text-slate-400" />
-            <h3 className="text-white font-bold text-sm uppercase tracking-wider">Historique des week-ends</h3>
+            <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
+              <Clock size={18} className="text-green-400" />Historique des tables de marque</h3>
           </div>
         </div>
         <div className="overflow-x-auto">

@@ -1,10 +1,23 @@
 import { useState, useEffect } from 'react';
 import { supabase, Carpool, Player, CarpoolProposal } from '../../lib/supabase';
 import { 
-  Car, Users, ChevronLeft, ChevronRight, UserPlus, UserMinus,
-  Check, X, Trash2, Clock, TrendingUp, AlertCircle, Edit2, ChevronDown, Calendar 
+  Plus, TrendingUp, Trash2, Calendar, Clock, X,
+  ChevronLeft, ChevronRight, UserPlus, UserMinus,
+  Check, Edit2, ChevronDown, Users 
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+
+interface WeekendCardProps {
+  weekendDate: string;
+  existing: Carpool | undefined;
+  players: Player[];
+  proposals: (CarpoolProposal & { players?: Player })[];
+  onAssign: (weekendDate: string, teamData: any) => void;
+  onRefresh: () => void;
+  isAdmin: boolean;
+  playerStats: Record<string, number>;
+  onDelete: (id: string) => void;
+}
 
 export const CarpoolManager = () => {
   const [carpools, setCarpools] = useState<Carpool[]>([]);
@@ -78,7 +91,7 @@ export const CarpoolManager = () => {
   const displayedHistory = showAllHistory ? historyData : historyData.slice(0, 10);
 
   const sortedPlayersByCount = [...players]
-    .filter(p => p.carpooling === true)
+    .filter((p: Player) => p.carpooling === true)
     .sort((a, b) => getPlayerAssignmentCount(a.id) - getPlayerAssignmentCount(b.id));
 
   const handleDelete = async (id: string) => {
@@ -101,23 +114,26 @@ export const CarpoolManager = () => {
 
   return (
     <div className="space-y-6 px-2 sm:px-0 pb-10">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-white flex items-center gap-2"> Covoiturage
-        </h2>
-        <div className="flex items-center gap-2 bg-slate-800 p-1 rounded-xl border border-slate-700 w-full sm:w-auto">
-          <button onClick={() => setMonthOffset(monthOffset - 1)} className="p-2 text-slate-400 hover:text-white transition-colors"><ChevronLeft size={20} /></button>
-          <span className="text-sm font-bold text-white min-w-[140px] text-center capitalize flex-1">{currentMonth}</span>
-          <button onClick={() => setMonthOffset(monthOffset + 1)} className="p-2 text-slate-400 hover:text-white transition-colors"><ChevronRight size={20} /></button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-white">Covoiturage</h2>
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2 bg-slate-800 p-1 rounded-xl border border-slate-700 w-full sm:w-auto">
+            <button onClick={() => setMonthOffset(monthOffset - 1)} className="p-2 text-slate-400 hover:text-white transition-colors"><ChevronLeft size={18} /></button>
+            <span className="text-sm font-bold text-white min-w-[120px] text-center capitalize flex-1">{currentMonth}</span>
+            <button onClick={() => setMonthOffset(monthOffset + 1)} className="p-2 text-slate-400 hover:text-white transition-colors"><ChevronRight size={18} /></button>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-stretch">
         <div className="lg:col-span-2">
-          <div className="bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700 shadow-xl h-full flex flex-col">
-            <h3 className="text-white font-bold mb-6 flex items-center gap-2 underline decoration-green-500 underline-offset-8">
-              <Calendar size={20} className="text-green-500" /> Calendrier des covoiturages
-            </h3>
-            <div className="space-y-4">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden h-full flex flex-col">
+            <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 shrink-0">
+              <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
+                <Calendar size={20} className="text-green-400" /> Calendrier des covoiturages
+              </h3>
+            </div>
+            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar">
               {weekends.map((weekend) => {
                 const dateStr = weekend.toISOString().split('T')[0];
                 return (
@@ -140,16 +156,20 @@ export const CarpoolManager = () => {
         </div>
 
         <div className="lg:col-span-1 lg:relative min-h-[400px]">
-          <div className="lg:absolute lg:inset-0 bg-slate-800 rounded-2xl p-6 border border-slate-700 h-full shadow-xl flex flex-col overflow-hidden">
-            <h3 className="text-white font-bold mb-4 flex items-center gap-2 shrink-0">
-              <TrendingUp size={20} className="text-green-500" /> Fréquence covoiturage
-            </h3>
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          <div className="lg:absolute lg:inset-0 bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50 shrink-0">
+              <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase">
+                <TrendingUp size={20} className="text-green-400" /> Fréquence covoiturage
+              </h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0">
               <div className="space-y-2">
-                {sortedPlayersByCount.map((player) => (
-                  <div key={player.id} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 hover:border-slate-500 transition-colors">
-                    <span className="text-slate-300 text-sm">{player.first_name} {player.last_name}</span>
-                    <span className="text-green-400 font-bold text-xs">{getPlayerAssignmentCount(player.id)}x</span>
+                {sortedPlayersByCount.map((player: Player) => (
+                  <div key={player.id} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 hover:border-slate-500 transition-colors group">
+                    <span className="text-slate-300 text-sm font-medium">{player.first_name} {player.last_name}</span>
+                    <span className="bg-green-500/10 text-green-400 font-bold text-xs px-2 py-1 rounded-lg border border-green-500/20">
+                      {getPlayerAssignmentCount(player.id)}x
+                    </span>
                   </div>
                 ))}
               </div>
@@ -159,10 +179,9 @@ export const CarpoolManager = () => {
       </div>
 
       <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
-        <div className="px-6 py-4 bg-slate-900/50 border-b border-slate-700">
+        <div className="p-6 bg-slate-900/50 border-b border-slate-700">
           <div className="flex items-center gap-2">
-            <Clock size={18} className="text-slate-400" />
-            <h3 className="text-white font-bold text-sm uppercase tracking-wider">Historique complet</h3>
+            <h3 className="text-white font-bold flex items-center gap-2 underline decoration-green-500 underline-offset-8 uppercase"><Clock size={18} className="text-green-400" /> Historique des covoiturages</h3>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -177,7 +196,7 @@ export const CarpoolManager = () => {
             <tbody className="divide-y divide-slate-700/50">
               {displayedHistory.length === 0 ? (
                 <tr>
-                  <td colSpan={user ? 3 : 2} className="px-6 py-10 text-center text-slate-500 italic text-sm">Aucun historique disponible</td>
+                  <td colSpan={user ? 3 : 2} className="px-6 py-12 text-center text-slate-500 italic text-sm">Aucun historique disponible</td>
                 </tr>
               ) : (
                 displayedHistory.map((item) => {
@@ -187,16 +206,16 @@ export const CarpoolManager = () => {
                   ].filter(Boolean);
 
                   return (
-                    <tr key={item.id} className="text-sm hover:bg-slate-700/20 transition-colors">
+                    <tr key={item.id} className="text-sm hover:bg-slate-700/20 transition-colors group">
                       <td className="px-6 py-4 text-slate-300 font-medium whitespace-nowrap">
                         {item.weekend_date ? new Date(item.weekend_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-2">
                           {assignedIds.map((id, i) => {
-                            const p = players.find(player => player.id === id);
+                            const p = players.find((player: Player) => player.id === id);
                             return p ? (
-                              <span key={i} className="bg-slate-900/50 text-slate-300 px-3 py-1 rounded text-xs border border-slate-700 min-w-[120px] text-center">
+                              <span key={i} className="bg-slate-900/50 text-slate-300 px-3 py-1 rounded-lg text-xs border border-slate-700 min-w-[120px] text-center">
                                 {p.first_name} {p.last_name}
                               </span>
                             ) : null;
@@ -205,7 +224,7 @@ export const CarpoolManager = () => {
                       </td>
                       {user && (
                         <td className="px-6 py-4 text-right">
-                          <button onClick={() => handleDelete(item.id)} className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg">
+                          <button onClick={() => handleDelete(item.id)} className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-colors">
                             <Trash2 size={16} />
                           </button>
                         </td>
@@ -219,7 +238,7 @@ export const CarpoolManager = () => {
         </div>
         {historyData.length > 10 && (
           <div className="p-4 bg-slate-900/20 border-t border-slate-700 text-center">
-            <button onClick={() => setShowAllHistory(!showAllHistory)} className="text-xs font-bold text-slate-400 hover:text-white transition-colors flex items-center gap-2 mx-auto">
+            <button onClick={() => setShowAllHistory(!showAllHistory)} className="text-xs font-bold text-slate-400 hover:text-white transition-colors flex items-center gap-2 mx-auto uppercase tracking-widest">
               {showAllHistory ? "Réduire" : `Voir les ${historyData.length - 10} autres`}
               <ChevronDown size={14} className={showAllHistory ? 'rotate-180' : ''} />
             </button>
@@ -229,18 +248,6 @@ export const CarpoolManager = () => {
     </div>
   );
 };
-
-interface WeekendCardProps {
-  weekendDate: string;
-  existing: Carpool | undefined;
-  players: Player[];
-  proposals: (CarpoolProposal & { players?: Player })[];
-  onAssign: (weekendDate: string, teamData: any) => void;
-  onRefresh: () => void;
-  isAdmin: boolean;
-  playerStats: Record<string, number>;
-  onDelete: (id: string) => void;
-}
 
 const WeekendCard = ({ weekendDate, existing, players, proposals, onRefresh, isAdmin, playerStats, onDelete, onAssign }: WeekendCardProps) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -290,12 +297,12 @@ const WeekendCard = ({ weekendDate, existing, players, proposals, onRefresh, isA
   };
 
   const renderNames = (ids: string[]) => {
-    const assigned = ids.filter(Boolean).map(id => players.find(player => player.id === id)).filter(Boolean);
-    if (assigned.length === 0) return <span className="text-slate-500 italic text-sm">Non défini</span>;
+    const assigned = ids.filter(Boolean).map(id => players.find((player: Player) => player.id === id)).filter(Boolean);
+    if (assigned.length === 0) return <span className="text-slate-500 italic text-xs">Non défini</span>;
     return (
       <div className="flex flex-wrap gap-2">
         {assigned.map((p, i) => (
-          <span key={i} className="bg-slate-700/50 text-white px-4 py-1.5 rounded-full text-xs border border-slate-600 min-w-[120px] text-center">
+          <span key={i} className="bg-slate-700/50 text-white px-4 py-1.5 rounded-xl text-[11px] font-bold border border-slate-600 min-w-[110px] text-center">
             {p?.first_name} {p?.last_name}
           </span>
         ))}
@@ -304,22 +311,22 @@ const WeekendCard = ({ weekendDate, existing, players, proposals, onRefresh, isA
   };
 
   return (
-    <div className={`p-4 rounded-xl border transition-all ${existing ? 'bg-slate-900/60 border-slate-700 shadow-md' : 'bg-slate-900/20 border-slate-800 border-dashed'}`}>
-      <div className="flex justify-between items-center mb-4">
-        <p className="text-white font-bold text-sm">Week-end du {new Date(weekendDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</p>
+    <div className={`p-5 rounded-2xl border transition-all ${existing ? 'bg-slate-900/60 border-slate-700 shadow-lg' : 'bg-slate-900/20 border-slate-800 border-dashed'}`}>
+      <div className="flex justify-between items-center mb-5">
+        <p className="text-white font-bold text-sm uppercase tracking-wide">Week-end du {new Date(weekendDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</p>
         {isAdmin && !isEditing && (
-          <button onClick={() => setIsEditing(true)} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors"><Edit2 size={18} /></button>
+          <button onClick={() => setIsEditing(true)} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-xl transition-all"><Edit2 size={16} /></button>
         )}
       </div>
 
       {proposals.length > 0 && isAdmin && !isEditing && (
         <div className="mb-4 space-y-2">
           {proposals.map((p) => (
-            <div key={p.id} className="bg-yellow-500/10 border border-yellow-500/20 p-2 rounded-lg flex items-center justify-between">
-               <span className="text-yellow-500 text-xs font-bold">{p.players?.first_name} est volontaire</span>
+            <div key={p.id} className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl flex items-center justify-between">
+               <span className="text-amber-500 text-xs font-bold uppercase tracking-tight">{p.players?.first_name} est volontaire</span>
                <div className="flex gap-2">
-                <button onClick={() => handleValidateProposal(p)} className="p-1 text-green-500 hover:bg-green-500/20 rounded"><Check size={16}/></button>
-                <button onClick={async () => { await supabase.from('carpool_proposals').delete().eq('id', p.id); onRefresh(); }} className="p-1 text-red-500 hover:bg-red-500/20 rounded"><X size={16}/></button>
+                <button onClick={() => handleValidateProposal(p)} className="p-1.5 text-green-500 hover:bg-green-500/20 rounded-lg"><Check size={16}/></button>
+                <button onClick={async () => { await supabase.from('carpool_proposals').delete().eq('id', p.id); onRefresh(); }} className="p-1.5 text-red-500 hover:bg-red-500/20 rounded-lg"><X size={16}/></button>
                </div>
             </div>
           ))}
@@ -327,19 +334,19 @@ const WeekendCard = ({ weekendDate, existing, players, proposals, onRefresh, isA
       )}
 
       {!isAdmin && (
-        <div className="mb-4">
+        <div className="mb-5">
           {!showProposalForm ? (
-            <button onClick={() => setShowProposalForm(true)} className="w-full py-2 bg-yellow-600/20 text-yellow-500 border border-yellow-600/30 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-yellow-600/30">
-              <UserPlus size={16} /> Je suis disponible pour covoiturer
+            <button onClick={() => setShowProposalForm(true)} className="w-full py-2.5 bg-amber-600/20 text-amber-500 border border-amber-600/30 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-amber-600/30 transition-all uppercase tracking-widest">
+              <UserPlus size={16} /> Je suis disponible
             </button>
           ) : (
             <div className="flex gap-2">
-               <select value={selectedProposalPlayer} onChange={(e) => setSelectedProposalPlayer(e.target.value)} className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-white">
+               <select value={selectedProposalPlayer} onChange={(e) => setSelectedProposalPlayer(e.target.value)} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-amber-500">
                   <option value="">Sélectionner votre nom</option>
                   {players.filter((p: Player) => p.carpooling).map((p: Player) => <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
                </select>
-               <button onClick={handlePropose} className="p-2 bg-green-600 text-white rounded-lg"><Check size={16}/></button>
-               <button onClick={() => setShowProposalForm(false)} className="p-2 bg-slate-700 text-white rounded-lg"><X size={16}/></button>
+               <button onClick={handlePropose} className="p-2 bg-green-600 text-white rounded-xl hover:bg-green-500 transition-all"><Check size={18}/></button>
+               <button onClick={() => setShowProposalForm(false)} className="p-2 bg-slate-700 text-white rounded-xl hover:bg-slate-600 transition-all"><X size={18}/></button>
             </div>
           )}
         </div>
@@ -347,55 +354,55 @@ const WeekendCard = ({ weekendDate, existing, players, proposals, onRefresh, isA
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-3">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2"><Users size={14} className="text-green-500" /> Voiture 1</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 underline decoration-green-500/30 underline-offset-4"><Users size={14} className="text-green-500" /> Voiture 1</p>
           {isEditing ? (
             <div className="space-y-2">
               {team1.map((id, i) => (
                 <div key={i} className="flex gap-2">
-                  <select value={id} onChange={e => { const n = [...team1]; n[i] = e.target.value; setTeam1(n); }} className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                  <select value={id} onChange={e => { const n = [...team1]; n[i] = e.target.value; setTeam1(n); }} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-green-500">
                     <option value="">Choisir...</option>
                     {players.filter((p: Player) => p.carpooling).map((p: Player) => {
                         const isChosen = [...team1, ...team2].some((cid) => cid === p.id && id !== p.id);
-                        return <option key={p.id} value={p.id} disabled={isChosen}>{p.first_name} {p.last_name} ({playerStats[p.id]||0}x) {isChosen ? '(Déjà choisi)' : ''}</option>
+                        return <option key={p.id} value={p.id} disabled={isChosen}>{p.first_name} {p.last_name} ({playerStats[p.id]||0}x) {isChosen ? '(Occupé)' : ''}</option>
                     })}
                   </select>
                   {team1.length > 1 && <button onClick={() => setTeam1(team1.filter((_, idx) => idx !== i))} className="p-2 text-slate-500 hover:text-red-400"><UserMinus size={16} /></button>}
                 </div>
               ))}
-              {team1.length < 5 && <button onClick={() => setTeam1([...team1, ''])} className="text-[10px] text-blue-400 flex items-center gap-1 hover:text-blue-300 font-medium py-1"><UserPlus size={14} /> Ajouter</button>}
+              {team1.length < 5 && <button onClick={() => setTeam1([...team1, ''])} className="text-[10px] text-green-400 flex items-center gap-1 hover:text-green-300 font-bold uppercase tracking-tighter py-1 transition-all"><Plus size={12} /> Ajouter un passager</button>}
             </div>
           ) : renderNames(team1)}
         </div>
 
         <div className="space-y-3">
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2"><Users size={14} className="text-blue-500" /> Voiture 2</p>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 underline decoration-blue-500/30 underline-offset-4"><Users size={14} className="text-blue-500" /> Voiture 2</p>
           {isEditing ? (
             <div className="space-y-2">
               {team2.map((id, i) => (
                 <div key={i} className="flex gap-2">
-                  <select value={id} onChange={e => { const n = [...team2]; n[i] = e.target.value; setTeam2(n); }} className="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-white outline-none">
+                  <select value={id} onChange={e => { const n = [...team2]; n[i] = e.target.value; setTeam2(n); }} className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">Choisir...</option>
                     {players.filter((p: Player) => p.carpooling).map((p: Player) => {
                         const isChosen = [...team1, ...team2].some((cid) => cid === p.id && id !== p.id);
-                        return <option key={p.id} value={p.id} disabled={isChosen}>{p.first_name} {p.last_name} ({playerStats[p.id]||0}x) {isChosen ? '(Déjà choisi)' : ''}</option>
+                        return <option key={p.id} value={p.id} disabled={isChosen}>{p.first_name} {p.last_name} ({playerStats[p.id]||0}x) {isChosen ? '(Occupé)' : ''}</option>
                     })}
                   </select>
                   {team2.length > 1 && <button onClick={() => setTeam2(team2.filter((_, idx) => idx !== i))} className="p-2 text-slate-500 hover:text-red-400"><UserMinus size={16} /></button>}
                 </div>
               ))}
-              {team2.length < 5 && <button onClick={() => setTeam2([...team2, ''])} className="text-[10px] text-blue-400 flex items-center gap-1 hover:text-blue-300 font-medium py-1"><UserPlus size={14} /> Ajouter</button>}
+              {team2.length < 5 && <button onClick={() => setTeam2([...team2, ''])} className="text-[10px] text-blue-400 flex items-center gap-1 hover:text-blue-300 font-bold uppercase tracking-tighter py-1 transition-all"><Plus size={12} /> Ajouter un passager</button>}
             </div>
           ) : renderNames(team2)}
         </div>
       </div>
 
       {isEditing && (
-        <div className="mt-6 pt-4 border-t border-slate-700 flex gap-2">
-          <button onClick={handleSave} className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors">
-            <Check size={16} /> Valider les options
+        <div className="mt-6 pt-5 border-t border-slate-800 flex gap-3">
+          <button onClick={handleSave} className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all uppercase tracking-widest shadow-lg shadow-green-900/20">
+            <Check size={18} /> Valider
           </button>
-          <button onClick={() => setIsEditing(false)} className="p-2 bg-slate-700 text-white rounded-xl hover:bg-slate-600 transition-colors"><X size={16} /></button>
-          {existing && <button onClick={() => onDelete(existing.id)} className="p-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"><Trash2 size={16} /></button>}
+          <button onClick={() => setIsEditing(false)} className="p-2.5 bg-slate-700 text-white rounded-xl hover:bg-slate-600 transition-all"><X size={18} /></button>
+          {existing && <button onClick={() => onDelete(existing.id)} className="p-2.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 border border-red-500/20 transition-all"><Trash2 size={18} /></button>}
         </div>
       )}
     </div>
