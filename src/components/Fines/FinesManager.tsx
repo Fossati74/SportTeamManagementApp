@@ -192,61 +192,23 @@ export const FinesManager = () => {
               {showAddForm && (
                 <div className="p-6">
                   <form onSubmit={handleAddFine} className="space-y-4">
-                    <div className="relative" ref={dropdownRef}>
-                      <input
-                        type="text"
-                        placeholder="Joueur..."
-                        value={formPlayerSearch}
-                        onChange={(e) => {
-                          setFormPlayerSearch(e.target.value);
-                          setShowPlayerList(true);
-                        }}
-                        className="w-full pl-4 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                      />
-                      {showPlayerList && (
-                        <div className="absolute z-50 w-full mt-2 bg-slate-900 border border-slate-700 rounded-xl max-h-48 overflow-y-auto">
-                          {players
-                            .filter(
-                              (p) =>
-                                p.participates_in_fund &&
-                                fuzzyMatch(
-                                  `${p.first_name} ${p.last_name}`,
-                                  formPlayerSearch,
-                                  true,
-                                ),
-                            )
-                            .map((p) => (
-                              <button
-                                key={p.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedPlayer(p.id);
-                                  setFormPlayerSearch(
-                                    `${p.first_name} ${p.last_name}`,
-                                  );
-                                  setShowPlayerList(false);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
-                              >
-                                {p.first_name} {p.last_name}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                    <select
+                    {/* SELECTION DU JOUEUR */}
+                    <PlayerSearchSelect
+                      label="Joueur..."
+                      value={selectedPlayer}
+                      onSelect={setSelectedPlayer}
+                      players={players.filter((p) => p.participates_in_fund)}
+                      statKey="" // Pas de stat nécessaire ici
+                    />
+                    {/* SELECTION DE L'AMENDE (Détournement du composant) */}
+                    <PlayerSearchSelect
+                      label="Choisir une amende..."
                       value={selectedFineType}
-                      onChange={(e) => setSelectedFineType(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm"
-                      required
-                    >
-                      <option value="">Amende...</option>
-                      {fineTypes.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} ({t.amount}€)
-                        </option>
-                      ))}
-                    </select>
+                      onSelect={setSelectedFineType}
+                      players={fineTypes}
+                      statLabel="€"
+                      statKey="amount"
+                    />
                     <input
                       type="date"
                       value={selectedDate}
