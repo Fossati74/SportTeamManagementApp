@@ -22,6 +22,7 @@ import { formatPrice } from "../../utils/format";
 import { SectionHeader } from "../common/SectionHeader";
 import { usePlayerStats } from "../../hooks/usePlayerStats";
 import toast from "react-hot-toast";
+import { PlayerSearchSelect } from "../common/PlayerSearchSelect";
 
 export const FinesManager = () => {
   const [fines, setFines] = useState<
@@ -277,7 +278,11 @@ export const FinesManager = () => {
           className={`${isAdmin ? "lg:col-span-2" : "lg:col-span-3"} lg:relative min-h-[500px]`}
         >
           <div className="lg:absolute lg:inset-0 bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden flex flex-col">
-            <SectionHeader title="Montant par joueur" Icon={TrendingUp} isSearch>
+            <SectionHeader
+              title="Montant par joueur"
+              Icon={TrendingUp}
+              isSearch
+            >
               <div className="relative w-full sm:w-64">
                 <Search
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
@@ -452,25 +457,23 @@ export const FinesManager = () => {
 
       <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden shadow-xl">
         <SectionHeader title="Historique complet" Icon={Clock}>
-          <div className="flex flex-wrap gap-2">
-            <select
-              value={filterPlayer}
-              onChange={(e) => setFilterPlayer(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-[10px] font-bold text-white outline-none"
-            >
-              <option value="">Tous Joueurs</option>
-              {players
-                .filter((p) => p.participates_in_fund)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.first_name} {p.last_name}
-                  </option>
-                ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Remplacement du Select Joueur */}
+            <div className="w-48">
+              <PlayerSearchSelect
+                label="Tous Joueurs" // Le label sert de placeholder quand rien n'est sélectionné
+                value={filterPlayer}
+                onSelect={setFilterPlayer}
+                players={players.filter((p) => p.participates_in_fund)}
+                statKey=""
+                allSelectedIds={[]}
+              />
+            </div>
+
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-[10px] font-bold text-white outline-none"
+              className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-2 text-[10px] font-bold text-white outline-none focus:ring-2 focus:ring-green-500 h-[38px]"
             >
               <option value="">Tous Types</option>
               {fineTypes.map((t) => (
@@ -479,16 +482,29 @@ export const FinesManager = () => {
                 </option>
               ))}
             </select>
+
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as "desc" | "asc")}
-              className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-1.5 text-[10px] font-bold text-white outline-none"
+              className="bg-slate-900 border border-slate-700 rounded-xl px-2 py-2 text-[10px] font-bold text-white outline-none focus:ring-2 focus:ring-green-500 h-[38px]"
             >
               <option value="desc">Récent ↓</option>
               <option value="asc">Ancien ↑</option>
             </select>
+
+            {/* Bouton pour réinitialiser rapidement le filtre joueur s'il est actif */}
+            {filterPlayer && (
+              <button
+                onClick={() => setFilterPlayer("")}
+                className="p-2 text-slate-500 hover:text-white transition-colors bg-slate-900/50 rounded-lg border border-slate-700"
+                title="Réinitialiser le filtre"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
         </SectionHeader>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-900/30 text-slate-500 text-[10px] uppercase">
@@ -541,7 +557,7 @@ export const FinesManager = () => {
                         {isAdmin && (
                           <button
                             onClick={() => {
-                              if (confirm("Supprimer ?"))
+                              if (confirm("Supprimer cette amende ?"))
                                 supabase
                                   .from("fines")
                                   .delete()
@@ -562,6 +578,17 @@ export const FinesManager = () => {
                 ))}
             </tbody>
           </table>
+
+          {/* Message si aucun résultat après filtrage */}
+          {fines.filter(
+            (f) =>
+              (filterPlayer ? f.player_id === filterPlayer : true) &&
+              (filterType ? f.fine_type_id === filterType : true),
+          ).length === 0 && (
+            <div className="p-10 text-center text-slate-500 italic text-sm">
+              Aucune amende ne correspond à ces critères.
+            </div>
+          )}
         </div>
       </div>
     </div>

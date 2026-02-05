@@ -5,12 +5,10 @@ import { Player } from '../../lib/supabase';
 export const PlayerSearchSelect = ({ 
   label, value, onSelect, players, playerStats = {}, allSelectedIds = [], statLabel = "x", statKey = "aperoCount" 
 }: any) => {
-  // Cet état est propre à CHAQUE instance du composant
   const [localSearch, setLocalSearch] = useState("");
   const [showList, setShowList] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Synchronisation initiale ou quand la valeur change REELLEMENT
   useEffect(() => {
     const p = players.find((p: Player) => p.id === value);
     setLocalSearch(p ? `${p.first_name} ${p.last_name}` : "");
@@ -46,10 +44,26 @@ export const PlayerSearchSelect = ({
           setShowList(true);
           setLocalSearch(""); 
         }}
-        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs outline-none focus:ring-2 focus:ring-green-500 transition-all"
+        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs outline-none focus:ring-2 focus:ring-green-500 transition-all placeholder:text-slate-500"
       />
       {showList && (
         <div className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-40 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200">
+          
+          {/* Option pour réinitialiser / Voir tous les joueurs */}
+          {localSearch === "" && (
+            <button
+              type="button"
+              onClick={() => {
+                onSelect("");
+                setLocalSearch("");
+                setShowList(false);
+              }}
+              className="w-full text-left px-3 py-2 text-[10px] border-b border-slate-800 text-amber-500 font-bold uppercase tracking-widest hover:bg-slate-800 transition-colors bg-slate-900/50"
+            >
+              Voir tous les joueurs
+            </button>
+          )}
+
           {filteredPlayers.map((p: Player) => {
             const isAlreadyChosen = allSelectedIds.includes(p.id) && p.id !== value;
             return (
@@ -66,9 +80,19 @@ export const PlayerSearchSelect = ({
                   ${isAlreadyChosen ? 'opacity-40 cursor-not-allowed bg-slate-950' : 'text-slate-300 hover:bg-slate-800 hover:text-green-400'}`}
               >
                 <div className="flex flex-col">
-                  {!isAlreadyChosen ? <span>{p.first_name} {p.last_name}</span> : <span className="text-amber-500 font-bold uppercase tracking-tighter">{p.first_name} {p.last_name}</span>}
+                  {!isAlreadyChosen ? (
+                    <span>{p.first_name} {p.last_name}</span>
+                  ) : (
+                    <span className="text-amber-500 font-bold uppercase tracking-tighter">
+                      {p.first_name} {p.last_name}
+                    </span>
+                  )}
                 </div>
-                <span className="text-slate-500 font-bold text-[10px]">{playerStats[p.id]?.[statKey] || 0}{statLabel}</span>
+                {statKey && (
+                  <span className="text-slate-500 font-bold text-[10px]">
+                    {playerStats[p.id]?.[statKey] || 0}{statLabel}
+                  </span>
+                )}
               </button>
             );
           })}
