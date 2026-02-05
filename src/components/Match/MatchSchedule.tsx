@@ -3,6 +3,7 @@ import { supabase, Player, MatchSchedule as MatchScheduleType } from "../../lib/
 import { Calendar, Trash2, TrendingUp, ChevronLeft, ChevronRight, UserPlus, UserMinus, Edit2, Check, X, Clock, ChevronDown } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { SectionHeader } from "../common/SectionHeader";
+import { PlayerSearchSelect } from "../common/PlayerSearchSelect"; // Import de notre nouveau composant
 import { toast } from "react-hot-toast";
 import { getSpecificDaysInMonth, getTargetMonthLabel } from "../../utils/date";
 import { usePlayerStats } from "../../hooks/usePlayerStats";
@@ -19,9 +20,6 @@ export const MatchSchedule = () => {
   
   const { user } = useAuth();
   const isAdmin = !!user;
-
-  // --- OPTIMISATION : Utilisation du Hook Global ---
-  // On récupère playerStats (déjà calculé) et refreshStats pour mettre à jour les compteurs
   const { playerStats, refreshStats } = usePlayerStats();
 
   useEffect(() => {
@@ -82,7 +80,7 @@ export const MatchSchedule = () => {
       }
       toast.success("Planning mis à jour !");
       fetchData();
-      refreshStats(); // CRUCIAL : Relance le calcul global des stats
+      refreshStats();
     } catch (error) {
       toast.error("Erreur lors de l'enregistrement");
     }
@@ -102,14 +100,12 @@ export const MatchSchedule = () => {
 
   const sortedPlayersByStats = [...players]
     .filter((p) => p.scoreboard === true)
-    // On utilise directement la propriété .matchCount venant du hook
     .sort((a, b) => (playerStats[a.id]?.matchCount || 0) - (playerStats[b.id]?.matchCount || 0));
 
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin h-10 w-10 border-b-2 border-green-500 rounded-full" /></div>;
 
   return (
     <div className="space-y-6 px-2 sm:px-0 pb-10">
-      {/* HEADER AVEC NAVIGATION MOIS */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-white uppercase tracking-tight">Table de Marque</h2>
         <div className="flex items-center gap-2 bg-slate-800 p-1 rounded-xl border border-slate-700 w-full sm:w-auto">
@@ -119,7 +115,7 @@ export const MatchSchedule = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         <div className="lg:col-span-2">
           <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden h-full flex flex-col">
             <SectionHeader title="Calendrier des tables de marque" Icon={Calendar} />
@@ -130,7 +126,7 @@ export const MatchSchedule = () => {
                   weekend={weekend}
                   existingSchedule={schedules.find((s) => s.match_date.startsWith(weekend.saturday))}
                   players={players}
-                  playerStats={playerStats} // On passe les stats du hook au composant enfant
+                  playerStats={playerStats}
                   onAssignWeekend={handleAssignWeekend}
                   onDelete={handleDelete}
                   isAdmin={isAdmin}
@@ -140,15 +136,15 @@ export const MatchSchedule = () => {
           </div>
         </div>
 
-        <div className="lg:col-span-1 lg:relative min-h-[400px]">
-          <div className="lg:absolute lg:inset-0 bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden flex flex-col">
+        <div className="lg:col-span-1 lg:max-h-[1px] lg:min-h-full">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden h-full flex flex-col">
             <SectionHeader title="Fréquence table de marque" Icon={TrendingUp} />
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar min-h-0">
               <div className="space-y-2">
                 {sortedPlayersByStats.map((player) => (
                   <div key={player.id} className="flex justify-between items-center bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 hover:border-slate-500 transition-colors group">
                     <span className="text-slate-300 text-sm font-medium">{player.first_name} {player.last_name}</span>
-                    <span className="bg-green-500/10 text-green-400 font-bold text-xs px-2 py-1 rounded-lg border border-green-500/20">
+                    <span className="bg-green-500/10 text-green-400 font-bold text-xs px-2 py-1 rounded-lg border border-green-500/20 group-hover:bg-green-500/20 transition-colors">
                       {playerStats[player.id]?.matchCount || 0}x
                     </span>
                   </div>
@@ -203,11 +199,18 @@ export const MatchSchedule = () => {
             </tbody>
           </table>
         </div>
+        {historyData.length > 10 && (
+          <div className="p-4 bg-slate-900/20 border-t border-slate-700 text-center">
+            <button onClick={() => setShowAllHistory(!showAllHistory)} className="text-xs font-bold text-slate-400 hover:text-white transition-colors flex items-center gap-2 mx-auto">
+              {showAllHistory ? "Réduire l'historique" : `Voir les ${historyData.length - 10} autres week-ends`}
+              <ChevronDown size={14} className={showAllHistory ? "rotate-180" : ""} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
-
 
 interface WeekendRowProps {
   weekend: { saturday: string; sunday: string };
@@ -243,6 +246,20 @@ const WeekendRow = ({ weekend, existingSchedule, players, playerStats, onAssignW
     setIsEditing(false);
   }, [existingSchedule, weekend.saturday]);
 
+  const isValid = () => {
+    const s1 = satPersons.slice(0, satCount).filter(id => id !== "");
+    const s2 = sunPersons.slice(0, sunCount).filter(id => id !== "");
+    
+    // Vérification des remplissages
+    if (s1.length !== satCount || s2.length !== sunCount) return false;
+    
+    // Vérification des doublons par jour
+    if (new Set(s1).size !== s1.length) return false;
+    if (new Set(s2).size !== s2.length) return false;
+
+    return true;
+  };
+
   const handleSave = () => {
     onAssignWeekend(weekend.saturday, satPersons, sunPersons);
     setIsEditing(false);
@@ -251,14 +268,12 @@ const WeekendRow = ({ weekend, existingSchedule, players, playerStats, onAssignW
   const handleRemovePerson = (day: "sat" | "sun", index: number) => {
     if (day === "sat") {
       const newP = [...satPersons];
-      newP.splice(index, 1);
-      newP.push("");
+      newP[index] = ""; 
       setSatPersons(newP);
       setSatCount((prev) => Math.max(1, prev - 1));
     } else {
       const newP = [...sunPersons];
-      newP.splice(index, 1);
-      newP.push("");
+      newP[index] = "";
       setSunPersons(newP);
       setSunCount((prev) => Math.max(1, prev - 1));
     }
@@ -279,9 +294,10 @@ const WeekendRow = ({ weekend, existingSchedule, players, playerStats, onAssignW
   };
 
   return (
-    <div className={`p-5 rounded-2xl border transition-all ${existingSchedule ? "bg-slate-900/60 border-slate-700 shadow-lg" : "bg-slate-900/20 border-slate-800 border-dashed"}`}>
+    <div className={`p-5 rounded-2xl border transition-all duration-300 ${existingSchedule ? "bg-slate-900/60 border-slate-700 shadow-lg" : "bg-slate-900/20 border-slate-800 border-dashed"}`}>
       <div className="flex justify-between items-center mb-4">
-        <p className="text-white font-bold text-sm uppercase tracking-wide">
+        <p className="text-white font-bold text-sm uppercase tracking-wide flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${existingSchedule ? "bg-green-500 animate-pulse" : "bg-slate-600"}`}></span>
           Week-end du {new Date(weekend.saturday + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
         </p>
         {isAdmin && !isEditing && (
@@ -294,34 +310,34 @@ const WeekendRow = ({ weekend, existingSchedule, players, playerStats, onAssignW
         <div className="space-y-3">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 underline decoration-green-500/30 underline-offset-4">Samedi {new Date(weekend.saturday + "T12:00:00").getDate()}</p>
           {isEditing ? (
-            <div className="space-y-2">
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
               {Array.from({ length: satCount }).map((_, i) => (
-                <div key={i} className="flex gap-2">
-                  <select
-                    value={satPersons[i] || ""}
-                    onChange={(e) => {
-                      const newP = [...satPersons];
-                      newP[i] = e.target.value;
-                      setSatPersons(newP);
-                    }}
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="">Choisir...</option>
-                    {players.map((p) => (
-                      <option key={p.id} value={p.id} disabled={satPersons.some((id, idx) => id === p.id && idx !== i)}>
-                        {p.first_name} {p.last_name} ({playerStats[p.id]?.matchCount || 0}x)
-                      </option>
-                    ))}
-                  </select>
+                <div key={`${weekend.saturday}-sat-${i}`} className="flex gap-2">
+                  <div className="flex-1">
+                    <PlayerSearchSelect 
+                      key={`sat-p-${i}-${weekend.saturday}`}
+                      label={`Responsable ${i+1}`}
+                      value={satPersons[i]}
+                      onSelect={(id: string) => {
+                        const newP = [...satPersons];
+                        newP[i] = id;
+                        setSatPersons(newP);
+                      }}
+                      players={players}
+                      playerStats={playerStats}
+                      allSelectedIds={satPersons} // Grise les doublons du samedi
+                      statKey="matchCount"
+                    />
+                  </div>
                   {satCount > 1 && (
-                    <button onClick={() => handleRemovePerson("sat", i)} className="p-2 text-slate-500 hover:text-red-400">
+                    <button onClick={() => handleRemovePerson("sat", i)} className="p-2 text-slate-500 hover:text-red-400 transition-colors">
                       <UserMinus size={16} />
                     </button>
                   )}
                 </div>
               ))}
               {satCount < 4 && (
-                <button onClick={() => setSatCount(satCount + 1)} className="text-[10px] text-green-400 flex items-center gap-1 font-bold uppercase py-1">
+                <button onClick={() => setSatCount(satCount + 1)} className="text-[10px] text-green-400 flex items-center gap-1 font-bold uppercase py-1 hover:text-green-300 transition-colors">
                   <UserPlus size={14} /> Ajouter
                 </button>
               )}
@@ -331,34 +347,34 @@ const WeekendRow = ({ weekend, existingSchedule, players, playerStats, onAssignW
         <div className="space-y-3">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 underline decoration-blue-500/30 underline-offset-4">Dimanche {new Date(weekend.sunday + "T12:00:00").getDate()}</p>
           {isEditing ? (
-            <div className="space-y-2">
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
               {Array.from({ length: sunCount }).map((_, i) => (
-                <div key={i} className="flex gap-2">
-                  <select
-                    value={sunPersons[i] || ""}
-                    onChange={(e) => {
-                      const newP = [...sunPersons];
-                      newP[i] = e.target.value;
-                      setSunPersons(newP);
-                    }}
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Choisir...</option>
-                    {players.map((p) => (
-                      <option key={p.id} value={p.id} disabled={sunPersons.some((id, idx) => id === p.id && idx !== i)}>
-                        {p.first_name} {p.last_name} ({playerStats[p.id]?.matchCount || 0}x)
-                      </option>
-                    ))}
-                  </select>
+                <div key={`${weekend.saturday}-sun-${i}`} className="flex gap-2">
+                  <div className="flex-1">
+                    <PlayerSearchSelect 
+                      key={`sun-p-${i}-${weekend.saturday}`}
+                      label={`Responsable ${i+1}`}
+                      value={sunPersons[i]}
+                      onSelect={(id: string) => {
+                        const newP = [...sunPersons];
+                        newP[i] = id;
+                        setSunPersons(newP);
+                      }}
+                      players={players}
+                      playerStats={playerStats}
+                      allSelectedIds={sunPersons} // Grise les doublons du dimanche
+                      statKey="matchCount"
+                    />
+                  </div>
                   {sunCount > 1 && (
-                    <button onClick={() => handleRemovePerson("sun", i)} className="p-2 text-slate-500 hover:text-red-400">
+                    <button onClick={() => handleRemovePerson("sun", i)} className="p-2 text-slate-500 hover:text-red-400 transition-colors">
                       <UserMinus size={16} />
                     </button>
                   )}
                 </div>
               ))}
               {sunCount < 4 && (
-                <button onClick={() => setSunCount(sunCount + 1)} className="text-[10px] text-blue-400 flex items-center gap-1 font-bold uppercase py-1">
+                <button onClick={() => setSunCount(sunCount + 1)} className="text-[10px] text-blue-400 flex items-center gap-1 font-bold uppercase py-1 hover:text-blue-300 transition-colors">
                   <UserPlus size={14} /> Ajouter
                 </button>
               )}
@@ -368,10 +384,16 @@ const WeekendRow = ({ weekend, existingSchedule, players, playerStats, onAssignW
       </div>
       {isEditing && (
         <div className="flex gap-3 mt-6 pt-4 border-t border-slate-700">
-          <button onClick={handleSave} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold transition-all uppercase tracking-widest shadow-lg shadow-green-900/20">
+          <button 
+            disabled={!isValid()}
+            onClick={handleSave} 
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all uppercase tracking-widest shadow-lg ${isValid() ? 'bg-green-600 hover:bg-green-500 shadow-green-900/20 text-white' : 'bg-slate-600 text-slate-400 cursor-not-allowed opacity-50'}`}
+          >
             <Check size={18} /> Valider
           </button>
-          <button onClick={() => setIsEditing(false)} className="p-2.5 bg-slate-700 text-white rounded-xl hover:bg-slate-600 transition-all"><X size={18} /></button>
+          <button onClick={() => setIsEditing(false)} className="p-2.5 bg-slate-700 text-white rounded-xl hover:bg-slate-600 transition-all">
+            <X size={18} />
+          </button>
           {existingSchedule && (
             <button onClick={() => onDelete(existingSchedule.id)} className="p-2.5 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 border border-red-500/20 transition-all">
               <Trash2 size={18} />
