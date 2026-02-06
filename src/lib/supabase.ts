@@ -24,6 +24,9 @@ export interface Player {
   carpooling: boolean;
   scoreboard: boolean;
   thursday_aperitif: boolean;
+  total_fines: number;
+  total_events: number;
+  total_beers: number;
 }
 
 export interface AperoSchedule {

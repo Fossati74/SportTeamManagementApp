@@ -49,7 +49,7 @@ export const PlayerSearchSelect = ({
           setShowList(true);
           setLocalSearch(""); 
         }}
-        className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-green-500 outline-none transition-all placeholder:text-slate-500"
+        className="w-full px-4 h-[38px] bg-slate-900 border border-slate-700 rounded-xl text-white text-[10px] font-bold uppercase focus:ring-2 focus:ring-green-500 outline-none transition-all placeholder:text-slate-500"
       />
       {showList && (
         <div className="absolute z-50 w-full mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200">
@@ -63,7 +63,7 @@ export const PlayerSearchSelect = ({
                 setLocalSearch("");
                 setShowList(false);
               }}
-              className="w-full text-left px-4 py-3 text-[10px] border-b border-slate-800 text-amber-500 font-bold uppercase tracking-widest hover:bg-slate-800 transition-colors bg-slate-900/50"
+              className="w-full text-left p-2 text-[10px] border-b border-slate-800 text-amber-500 font-bold uppercase tracking-widest hover:bg-slate-800 transition-colors bg-slate-900/50"
             >
               {label.toLowerCase().includes("amende") ? "Voir toutes les amendes" : "Voir tous les joueurs"}
             </button>
