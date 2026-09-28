@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { supabase, Player, FineType, Fine } from "../../lib/supabase";
+import { supabase, Player, FineType, Fine, Collectif } from "../../lib/supabase";
 import {
   Plus, TrendingUp, Trash2, Bell, Search, Calendar, Clock,
-  ShieldAlert, X, Edit, Check,
+  ShieldAlert, X, Edit, Check, CreditCard, Copy,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useCollectifId } from "../../hooks/useCollectifId";
 import { FineTypeManager } from "./FineTypeManager";
 import { ExpenseManager } from "./ExpenseManager";
 import { fuzzyMatch } from "../../utils/search";
@@ -19,9 +20,13 @@ export const FinesManager = () => {
   const [fines, setFines] = useState<any[]>([]);
   const [beers, setBeers] = useState<any[]>([]);
   const [eventDebts, setEventDebts] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<{ amount: number }[]>([]);
   const [fineTypes, setFineTypes] = useState<FineType[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [collectif, setCollectif] = useState<Collectif | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editingIban, setEditingIban] = useState(false);
+  const [ibanDraft, setIbanDraft] = useState("");
 
   const [transactionType, setTransactionType] = useState<"fine" | "beers">("fine");
   const [selectedPlayer, setSelectedPlayer] = useState("");
@@ -36,8 +41,9 @@ export const FinesManager = () => {
   const [editingPaidAmount, setEditingPaidAmount] = useState<string | null>(null);
   const [paidAmountValue, setPaidAmountValue] = useState("0");
 
-  const { user } = useAuth();
-  const isAdmin = !!user;
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+  const collectifId = useCollectifId();
   const { refreshStats } = usePlayerStats();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,6 +55,9 @@ export const FinesManager = () => {
   const [beerSearchQuery, setBeerSearchQuery] = useState("");
   const [historyTab, setHistoryTab] = useState<"fines" | "beers" | "events">("fines");
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
+
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedItemForPayment, setSelectedItemForPayment] = useState<{ item: any, amount: number, table: string } | null>(null);
 
   const season = getCurrentSeason();
 
@@ -63,22 +72,43 @@ export const FinesManager = () => {
 
   const fetchData = async () => {
     try {
-      const [finesRes, beersRes, eventsRes, typesRes, playersRes] = await Promise.all([
-        supabase.from("fines").select("*, players(*), fine_types(*)").order("date", { ascending: false }),
-        supabase.from("beers").select("*, players(*)").order("date", { ascending: false }),
-        supabase.from("event_debts").select("*, players(*)").order("created_at", { ascending: false }),
-        supabase.from("fine_types").select("*").order("name", { ascending: true }),
-        supabase.from("players").select("*").order("last_name", { ascending: true }),
+      const [finesRes, beersRes, eventsRes, typesRes, playersRes, expensesRes, collectifRes] = await Promise.all([
+        supabase.from("fines").select("*, players:members(*), fine_types(*)").eq("collectif_id", collectifId).order("date", { ascending: false }),
+        supabase.from("beers").select("*, players:members(*)").eq("collectif_id", collectifId).order("date", { ascending: false }),
+        supabase.from("event_debts").select("*, players:members(*)").eq("collectif_id", collectifId).order("created_at", { ascending: false }),
+        supabase.from("fine_types").select("*").eq("collectif_id", collectifId).order("name", { ascending: true }),
+        supabase.from("members").select("*").eq("collectif_id", collectifId).order("last_name", { ascending: true }),
+        supabase.from("expenses").select("amount").eq("collectif_id", collectifId),
+        collectifId
+          ? supabase.from("collectifs").select("*").eq("id", collectifId).maybeSingle()
+          : Promise.resolve({ data: null }),
       ]);
       setFines(finesRes.data || []);
       setBeers(beersRes.data || []);
       setEventDebts(eventsRes.data || []);
       setFineTypes(typesRes.data || []);
       setPlayers(playersRes.data || []);
+      setExpenses(expensesRes.data || []);
+      setCollectif(collectifRes.data || null);
+      setIbanDraft(collectifRes.data?.iban || "");
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveIban = async () => {
+    if (!collectifId) return;
+    try {
+      const iban = ibanDraft.trim() || null;
+      const { error } = await supabase.from("collectifs").update({ iban }).eq("id", collectifId);
+      if (error) throw error;
+      setCollectif((c) => (c ? { ...c, iban } : c));
+      setEditingIban(false);
+      toast.success("IBAN mis à jour !");
+    } catch (error) {
+      toast.error("Erreur lors de la mise à jour de l'IBAN");
     }
   };
 
@@ -136,7 +166,7 @@ export const FinesManager = () => {
 
   const handleUpdatePaidAmount = async (playerId: string, newPaidTotal: number) => {
     try {
-      await supabase.from("players").update({ paid_amount: newPaidTotal }).eq("id", playerId);
+      await supabase.from("members").update({ paid_amount: newPaidTotal }).eq("id", playerId);
 
       const pFines = fines.filter(f => f.player_id === playerId).map(f => ({ id: f.id, table: 'fines', total: (f.fine_types?.amount || 0) * (f.quantity || 1), date: f.date }));
       const pBeers = beers.filter(b => b.player_id === playerId).map(b => ({ id: b.id, table: 'beers', total: b.amount, date: b.date }));
@@ -179,16 +209,70 @@ export const FinesManager = () => {
     e.preventDefault();
     try {
       if (transactionType === "fine") {
-        await supabase.from("fines").insert({ player_id: selectedPlayer, fine_type_id: selectedFineType, date: selectedDate, quantity: 1 });
+        await supabase.from("fines").insert({ player_id: selectedPlayer, fine_type_id: selectedFineType, date: selectedDate, quantity: 1, collectif_id: collectifId });
       } else {
         const amount = parseFloat(beerAmount);
-        await supabase.from("beers").insert(selectedBeerPlayers.map((id) => ({ player_id: id, amount, date: selectedDate, status: "unpaid" })));
+        await supabase.from("beers").insert(selectedBeerPlayers.map((id) => ({ player_id: id, amount, date: selectedDate, status: "unpaid", collectif_id: collectifId })));
       }
       toast.success("Enregistré !");
       setSelectedPlayer(""); setSelectedBeerPlayers([]); setSelectedFineType(""); setBeerAmount("");
       fetchData(); refreshStats();
     } catch (error) { toast.error("Erreur"); }
   };
+
+  const handleRequestPayment = (item: any, amount: number, table: string) => {
+    setSelectedItemForPayment({ item, amount, table });
+    setPaymentModalOpen(true);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!selectedItemForPayment) return;
+    try {
+      const { error } = await supabase
+        .from(selectedItemForPayment.table)
+        .update({ status: 'pending' })
+        .eq('id', selectedItemForPayment.item.id);
+      
+      if (error) throw error;
+      
+      toast.success("Paiement signalé ! En attente de validation.");
+      setPaymentModalOpen(false);
+      setSelectedItemForPayment(null);
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur lors de la mise à jour");
+    }
+  };
+
+  const handleValidatePayment = async (item: any, amount: number, table: string) => {
+    try {
+      const { error: statusError } = await supabase.from(table).update({ status: 'paid' }).eq('id', item.id);
+      if (statusError) throw statusError;
+
+      const player = players.find(p => p.id === item.player_id);
+      if (player) {
+        const newPaidAmount = (player.paid_amount || 0) + amount;
+        await supabase.from('members').update({ paid_amount: newPaidAmount }).eq('id', item.player_id);
+      }
+
+      toast.success("Paiement validé !");
+      fetchData();
+      refreshStats();
+    } catch (error) { toast.error("Erreur validation"); }
+  };
+
+  const handleRejectPayment = async (item: any, table: string) => {
+    if (!confirm("Rejeter ce paiement ?")) return;
+    try {
+      await supabase.from(table).update({ status: 'unpaid' }).eq('id', item.id);
+      toast.success("Paiement rejeté");
+      fetchData();
+    } catch (error) { toast.error("Erreur rejet"); }
+  };
+
+  const totalPaid = players.reduce((t, p) => t + (p.paid_amount || 0), 0);
+  const totalExpenses = expenses.reduce((t, e) => t + (Number(e.amount) || 0), 0);
 
   return (
     <div className="space-y-6 px-2 sm:px-0 pb-10">
@@ -202,17 +286,41 @@ export const FinesManager = () => {
             <Calendar size={16} /> {season.label}
           </p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full lg:w-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 w-full lg:w-auto">
           <StatCard title="Total Dû" value={`${formatPrice(players.reduce((t, p) => t + getPlayerBalance(p.id).due, 0))} €`} color="text-white" />
-          <StatCard title="Total Payé" value={`${formatPrice(players.reduce((t, p) => t + (p.paid_amount || 0), 0))} €`} color="text-green-400" />
-          <StatCard title="Solde" value={`${formatPrice(players.reduce((t, p) => t + getPlayerBalance(p.id).balance, 0))} €`} color="text-red-400" />
-          <StatCard title="En Caisse" value={`${formatPrice(players.reduce((t, p) => t + (p.paid_amount || 0), 0))} €`} color="text-white" isHighlight />
+          <StatCard title="Total Payé" value={`${formatPrice(totalPaid)} €`} color="text-green-400" />
+          <StatCard title="Solde joueurs" value={`${formatPrice(players.reduce((t, p) => t + getPlayerBalance(p.id).balance, 0))} €`} color="text-red-400" />
+          <StatCard title="Dépenses" value={`-${formatPrice(totalExpenses)} €`} color="text-orange-400" />
+          <StatCard title="En Caisse" value={`${formatPrice(totalPaid - totalExpenses)} €`} color="text-white" isHighlight />
         </div>
       </div>
+      <p className="text-slate-500 text-xs -mt-2">
+        En Caisse = Total Payé − Dépenses (trésorerie réelle du fonds commun). Ne pas confondre avec le Solde joueurs
+        (ce que les joueurs doivent encore individuellement, visible sur la page Effectif).
+      </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {isAdmin && (
           <div className="lg:col-span-1 space-y-6">
+            <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
+              <SectionHeader title="Coordonnées bancaires" Icon={CreditCard}>
+                <button onClick={() => setEditingIban(!editingIban)} className={`p-2 rounded-xl transition-all ${editingIban ? "bg-slate-700 text-white" : "bg-green-600/20 text-green-400"}`}>
+                  {editingIban ? <X size={20} /> : <Edit size={20} />}
+                </button>
+              </SectionHeader>
+              <div className="p-6">
+                {editingIban ? (
+                  <div className="space-y-3">
+                    <input type="text" value={ibanDraft} onChange={(e) => setIbanDraft(e.target.value)} placeholder="FR76 1234 5678 9012 3456 7890 123" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white font-mono outline-none focus:ring-1 focus:ring-green-500" />
+                    <button onClick={handleSaveIban} className="w-full bg-green-600 hover:bg-green-500 text-white py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
+                      <Check size={16} /> Enregistrer
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-slate-300 text-sm font-mono break-all">{collectif?.iban || "Aucun IBAN configuré pour ce collectif"}</p>
+                )}
+              </div>
+            </div>
             <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
               <SectionHeader title="Nouvelle transaction" Icon={Bell}>
                 <button onClick={() => setShowAddForm(!showAddForm)} className={`p-2 rounded-xl transition-all ${showAddForm ? "bg-slate-700 text-white" : "bg-green-600/20 text-green-400"}`}>
@@ -398,6 +506,7 @@ export const FinesManager = () => {
                   const amt = historyTab === "fines" ? (item.fine_types?.amount || 0) * (item.quantity || 1) : item.amount;
                   const lbl = historyTab === "fines" ? item.fine_types?.name : (item.notes || item.description || "Dette");
                   const isPaid = item.status === "paid";
+                  const isPending = item.status === "pending";
                   const isSelected = selectedRows.includes(item.id);
 
                   return (
@@ -409,10 +518,21 @@ export const FinesManager = () => {
                       <td className="px-6 py-4 text-white font-medium text-xs">{item.players?.first_name} {item.players?.last_name}</td>
                       <td className="px-6 py-4 text-slate-300 text-xs">{lbl}</td>
                       <td className="px-6 py-4 text-xs">
-                        <span className={`px-2 py-1 rounded-full font-bold uppercase text-[9px] border ${isPaid ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"}`}>{isPaid ? "Payé" : "À payer"}</span>
+                        <span className={`px-2 py-1 rounded-full font-bold uppercase text-[9px] border ${isPaid ? "bg-green-500/10 text-green-500 border-green-500/20" : isPending ? "bg-orange-500/10 text-orange-500 border-orange-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"}`}>
+                          {isPaid ? "Payé" : isPending ? "En attente" : "À payer"}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-3">
+                          {isAdmin && isPending && (
+                            <>
+                              <button onClick={() => handleValidatePayment(item, amt, historyTab === "events" ? "event_debts" : historyTab)} className="p-1 text-green-500 hover:bg-green-500/10 rounded transition-colors" title="Valider"><Check size={14} /></button>
+                              <button onClick={() => handleRejectPayment(item, historyTab === "events" ? "event_debts" : historyTab)} className="p-1 text-red-500 hover:bg-red-500/10 rounded transition-colors" title="Rejeter"><X size={14} /></button>
+                            </>
+                          )}
+                          {!isPaid && !isPending && (
+                            <button onClick={() => handleRequestPayment(item, amt, historyTab === "events" ? "event_debts" : historyTab)} className="p-1 text-blue-400 hover:text-blue-300 transition-colors" title="Payer"><CreditCard size={14} /></button>
+                          )}
                           <span className={`${amt > 0 ? "text-red-400" : "text-green-400"} font-bold text-xs`}>{formatPrice(amt)} €</span>
                           {isAdmin && historyTab !== "events" && <button onClick={() => handleDeleteEntry(item.id, historyTab)} className="opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>}
                         </div>
@@ -425,6 +545,17 @@ export const FinesManager = () => {
           </table>
         </div>
       </div>
+
+      {paymentModalOpen && selectedItemForPayment && (
+        <PaymentModal
+          item={selectedItemForPayment.item}
+          player={players.find(p => p.id === selectedItemForPayment.item.player_id)}
+          amount={selectedItemForPayment.amount}
+          iban={collectif?.iban}
+          onClose={() => setPaymentModalOpen(false)}
+          onConfirm={handleConfirmPayment}
+        />
+      )}
     </div>
   );
 };
@@ -442,3 +573,79 @@ const DetailRow = ({ label, value, isEditing, editValue, color, onChange }: any)
     {isEditing ? <input type="number" value={editValue} onChange={(e) => onChange(e.target.value)} className="w-14 bg-slate-900 border border-slate-700 rounded px-1 text-right outline-none text-white focus:ring-1 focus:ring-green-500" /> : <span className={color}>{formatPrice(value)} €</span>}
   </div>
 );
+
+const PaymentModal = ({ item, player, amount, iban, onClose, onConfirm }: any) => {
+  const [copied, setCopied] = useState(false);
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const [isPinValidated, setIsPinValidated] = useState(!player?.pin);
+
+  const handleValidatePin = () => {
+    if (player?.pin && player.pin !== pin) {
+      setError(true);
+      return;
+    }
+    setIsPinValidated(true);
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(iban);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+      <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
+          <h3 className="text-xl font-bold text-white flex items-center gap-2"><CreditCard className="text-green-500" /> Régler l'amende</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><X size={24} /></button>
+        </div>
+        <div className="p-6 space-y-6">
+          <div className="text-center">
+            <p className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-1">Montant à payer</p>
+            <p className="text-4xl font-black text-white">{formatPrice(amount)} €</p>
+            <p className="text-slate-500 text-xs mt-2">Pour : {item.players?.first_name} {item.players?.last_name}</p>
+          </div>
+
+          {!isPinValidated ? (
+            <div className="space-y-4">
+              <div className="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Code PIN du joueur</p>
+                <input
+                  type="password"
+                  value={pin}
+                  onChange={(e) => { setPin(e.target.value); setError(false); }}
+                  className={`w-full bg-slate-950 border ${error ? "border-red-500" : "border-slate-800"} rounded-lg px-3 py-2 text-white text-center tracking-widest font-mono outline-none focus:border-green-500 transition-colors`}
+                  placeholder="••••"
+                  maxLength={4}
+                />
+                {error && <p className="text-red-500 text-xs mt-1 text-center">Code incorrect</p>}
+              </div>
+              <button onClick={handleValidatePin} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl text-sm font-bold transition-transform active:scale-95 shadow-lg">Voir les infos de paiement</button>
+            </div>
+          ) : (
+            <>
+              {iban ? (
+                <div className="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                  <div>
+                    <div className="flex justify-between items-end mb-1">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase">Virement Bancaire (IBAN)</p>
+                      <button onClick={handleCopy} className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1">{copied ? <><Check size={12} /> Copié</> : <><Copy size={12} /> Copier</>}</button>
+                    </div>
+                    <code className="block w-full text-xs text-slate-300 font-mono bg-slate-950 px-3 py-2 rounded-lg break-all select-all border border-slate-800">{iban}</code>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-amber-400 text-xs text-center bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                  Aucun IBAN configuré par l'administrateur. Contacte-le pour connaître les modalités de paiement.
+                </p>
+              )}
+              <button onClick={onConfirm} className="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg animate-in fade-in slide-in-from-bottom-2"><Check size={18} /> J'ai effectué le virement</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

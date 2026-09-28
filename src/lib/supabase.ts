@@ -9,8 +9,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+export interface Collectif {
+  id: string;
+  name: string;
+  iban?: string | null;
+  created_at: string;
+}
+
 export interface Player {
   id: string;
+  collectif_id: string | null;
   first_name: string;
   last_name: string;
   photo_url?: string;
@@ -27,10 +35,15 @@ export interface Player {
   total_fines: number;
   total_events: number;
   total_beers: number;
+  pin?: string | null;
+  role: 'super_admin' | 'admin' | 'user';
+  email?: string | null;
+  user_id?: string | null;
 }
 
 export interface AperoSchedule {
   id: string;
+  collectif_id: string;
   person1_id?: string;
   person2_id?: string;
   date: string;
@@ -41,6 +54,7 @@ export interface AperoSchedule {
 
 export interface MatchSchedule {
   id: string;
+  collectif_id: string;
   match_date: string;
   location: string;
   opponent?: string;
@@ -59,6 +73,7 @@ export interface MatchSchedule {
 
 export interface Carpool {
   id: string;
+  collectif_id: string;
   match_id?: string;
   weekend_date?: string;
   team1_player1_id?: string;
@@ -77,6 +92,7 @@ export interface Carpool {
 
 export interface FineType {
   id: string;
+  collectif_id: string;
   name: string;
   amount: number;
   custom_label?: string;
@@ -86,6 +102,7 @@ export interface FineType {
 
 export interface Fine {
   id: string;
+  collectif_id: string;
   player_id: string;
   fine_type_id: string;
   date: string;
@@ -97,6 +114,7 @@ export interface Fine {
 
 export interface ActivityLog {
   id: string;
+  collectif_id: string;
   action: string;
   description: string;
   user_id?: string;
@@ -105,6 +123,7 @@ export interface ActivityLog {
 
 export interface CarpoolProposal {
   id: string;
+  collectif_id: string;
   weekend_date: string;
   player_id: string;
   is_validated: boolean;
@@ -114,6 +133,7 @@ export interface CarpoolProposal {
 
 export interface ExpenseParticipant {
   id: string;
+  collectif_id: string;
   expense_id: string;
   player_id: string;
   created_at: string;
@@ -122,6 +142,7 @@ export interface ExpenseParticipant {
 
 export interface Expense {
   id: string;
+  collectif_id: string;
   description: string;
   amount: number;
   date: string;

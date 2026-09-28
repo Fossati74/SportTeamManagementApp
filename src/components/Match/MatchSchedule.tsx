@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase, Player, MatchSchedule as MatchScheduleType } from "../../lib/supabase";
 import { Calendar, Trash2, TrendingUp, ChevronLeft, ChevronRight, UserPlus, UserMinus, Edit2, Check, X, Clock, ChevronDown } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useCollectifId } from "../../hooks/useCollectifId";
 import { SectionHeader } from "../common/SectionHeader";
 import { PlayerSearchSelect } from "../common/PlayerSearchSelect"; // Import de notre nouveau composant
 import { toast } from "react-hot-toast";
@@ -18,8 +19,9 @@ export const MatchSchedule = () => {
   const [currentMonth, setCurrentMonth] = useState("");
   const [showAllHistory, setShowAllHistory] = useState(false);
   
-  const { user } = useAuth();
-  const isAdmin = !!user;
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+  const collectifId = useCollectifId();
   const { playerStats, refreshStats } = usePlayerStats();
 
   useEffect(() => {
@@ -45,8 +47,8 @@ export const MatchSchedule = () => {
   const fetchData = async () => {
     try {
       const [schedulesResponse, playersResponse] = await Promise.all([
-        supabase.from("match_schedule").select("*").order("match_date", { ascending: false }),
-        supabase.from("players").select("*").order("last_name", { ascending: true }),
+        supabase.from("match_schedule").select("*").eq("collectif_id", collectifId).order("match_date", { ascending: false }),
+        supabase.from("members").select("*").eq("collectif_id", collectifId).order("last_name", { ascending: true }),
       ]);
       setSchedules(schedulesResponse.data || []);
       setPlayers(playersResponse.data || []);
@@ -76,7 +78,7 @@ export const MatchSchedule = () => {
       if (existing) {
         await supabase.from("match_schedule").update(updateData).eq("id", existing.id);
       } else {
-        await supabase.from("match_schedule").insert(updateData);
+        await supabase.from("match_schedule").insert({ ...updateData, collectif_id: collectifId });
       }
       toast.success("Planning mis à jour !");
       fetchData();

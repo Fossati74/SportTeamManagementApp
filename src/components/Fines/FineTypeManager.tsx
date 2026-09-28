@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase, FineType } from "../../lib/supabase";
 import { Plus, Trash2, X, Check, Scale } from "lucide-react";
 import { logActivity } from "../../lib/activityLog";
+import { useCollectifId } from "../../hooks/useCollectifId";
 import { SectionHeader } from "../common/SectionHeader";
 import toast from "react-hot-toast";
 
@@ -16,6 +17,7 @@ export const FineTypeManager = ({ onUpdate }: FineTypeManagerProps) => {
   const [amount, setAmount] = useState("");
   const [sanction, setSanction] = useState("");
   const [loading, setLoading] = useState(false);
+  const collectifId = useCollectifId();
 
   useEffect(() => {
     fetchFineTypes();
@@ -26,6 +28,7 @@ export const FineTypeManager = ({ onUpdate }: FineTypeManagerProps) => {
       const { data, error } = await supabase
         .from("fine_types")
         .select("*")
+        .eq("collectif_id", collectifId)
         .order("name", { ascending: true });
       if (error) throw error;
       setFineTypes(data || []);
@@ -42,9 +45,10 @@ export const FineTypeManager = ({ onUpdate }: FineTypeManagerProps) => {
         name,
         amount: parseFloat(amount),
         sanction: sanction || null,
+        collectif_id: collectifId,
       });
       if (error) throw error;
-      await logActivity("fine_type_added", `Type d'amende "${name}" ajouté`);
+      await logActivity("fine_type_added", `Type d'amende "${name}" ajouté`, collectifId);
       setName("");
       setAmount("");
       setSanction("");

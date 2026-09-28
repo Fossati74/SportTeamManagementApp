@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase, Expense, Player } from "../../lib/supabase";
 import { Plus, Trash2, Euro, Calendar, Users, X, Check } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useCollectifId } from "../../hooks/useCollectifId";
 import { logActivity } from "../../lib/activityLog";
 import { SectionHeader } from "../common/SectionHeader";
 import { toast } from "react-hot-toast";
@@ -20,6 +21,7 @@ export const ExpenseManager = ({ onUpdate }: ExpenseManagerProps) => {
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
+  const collectifId = useCollectifId();
 
   useEffect(() => {
     fetchExpenses();
@@ -29,8 +31,9 @@ export const ExpenseManager = ({ onUpdate }: ExpenseManagerProps) => {
   const fetchPlayers = async () => {
     try {
       const { data, error } = await supabase
-        .from("players")
+        .from("members")
         .select("*")
+        .eq("collectif_id", collectifId)
         .order("last_name", { ascending: true });
 
       if (error) throw error;
@@ -51,9 +54,10 @@ export const ExpenseManager = ({ onUpdate }: ExpenseManagerProps) => {
           expense_participants(
             id,
             player_id,
-            players(id, first_name, last_name)
+            players:members(id, first_name, last_name)
           )
         `)
+        .eq("collectif_id", collectifId)
         .order("date", { ascending: false });
 
       if (error) throw error;
@@ -79,6 +83,7 @@ export const ExpenseManager = ({ onUpdate }: ExpenseManagerProps) => {
           description,
           amount: totalAmount,
           date,
+          collectif_id: collectifId,
         })
         .select()
         .single();
@@ -89,6 +94,7 @@ export const ExpenseManager = ({ onUpdate }: ExpenseManagerProps) => {
       const participantsToInsert = Array.from(selectedPlayers).map((playerId) => ({
         expense_id: expenseData.id,
         player_id: playerId,
+        collectif_id: collectifId,
       }));
 
       const { error: participantsError } = await supabase
@@ -108,7 +114,8 @@ export const ExpenseManager = ({ onUpdate }: ExpenseManagerProps) => {
           amount: amountPerPerson,
           status: 'unpaid',
           expense_id: expenseData.id, // LIEN AVEC LA TABLE EXPENSES
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          collectif_id: collectifId,
         }));
 
         const { error: debtError } = await supabase
@@ -120,7 +127,8 @@ export const ExpenseManager = ({ onUpdate }: ExpenseManagerProps) => {
 
       await logActivity(
         "expense_added",
-        `Dépense ajoutée : ${description} (${amount}€). ${nonContributors.length} dettes créées.`
+        `Dépense ajoutée : ${description} (${amount}€). ${nonContributors.length} dettes créées.`,
+        collectifId
       );
 
       resetForm();
@@ -155,7 +163,7 @@ export const ExpenseManager = ({ onUpdate }: ExpenseManagerProps) => {
       const { error } = await supabase.from("expenses").delete().eq("id", id);
       if (error) throw error;
 
-      await logActivity("expense_deleted", `Dépense et dettes supprimées : ${expense?.description}`);
+      await logActivity("expense_deleted", `Dépense et dettes supprimées : ${expense?.description}`, collectifId);
       fetchExpenses();
       onUpdate();
       toast.success("Dépense et dettes supprimées !");

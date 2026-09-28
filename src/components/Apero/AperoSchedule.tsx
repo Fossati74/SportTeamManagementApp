@@ -17,6 +17,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useCollectifId } from "../../hooks/useCollectifId";
 import { fuzzyMatch } from "../../utils/search";
 import { SectionHeader } from "../common/SectionHeader";
 import { toast } from "react-hot-toast";
@@ -37,8 +38,9 @@ export const AperoSchedule = () => {
   const [currentMonth, setCurrentMonth] = useState("");
   const [showAllHistory, setShowAllHistory] = useState(false);
 
-  const { user } = useAuth();
-  const isAdmin = !!user;
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+  const collectifId = useCollectifId();
   const { playerStats, refreshStats } = usePlayerStats();
 
   useEffect(() => {
@@ -56,10 +58,12 @@ export const AperoSchedule = () => {
           .select(
             "*, person1:person1_id(*), person2:person2_id(*), person3:person3_id(*)",
           )
+          .eq("collectif_id", collectifId)
           .order("date", { ascending: false }),
         supabase
-          .from("players")
+          .from("members")
           .select("*")
+          .eq("collectif_id", collectifId)
           .order("last_name", { ascending: true }),
       ]);
       setSchedule(scheduleRes.data || []);
@@ -95,7 +99,7 @@ export const AperoSchedule = () => {
         );
         await supabase
           .from("apero_schedule")
-          .insert({ date, person1_id: sorted[0].id, person2_id: sorted[1].id });
+          .insert({ date, person1_id: sorted[0].id, person2_id: sorted[1].id, collectif_id: collectifId });
       }
       toast.success("Assignation automatique terminée !");
       fetchData();
@@ -126,7 +130,7 @@ export const AperoSchedule = () => {
           .from("apero_schedule")
           .update(data)
           .eq("id", existing.id);
-      else await supabase.from("apero_schedule").insert(data);
+      else await supabase.from("apero_schedule").insert({ ...data, collectif_id: collectifId });
       toast.success("Planning mis à jour !");
       fetchData();
       refreshStats();

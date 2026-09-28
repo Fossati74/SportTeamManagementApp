@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase, Player } from '../../lib/supabase';
 import { notifyPlayerAction } from '../../lib/notifications';
+import { useCollectifId } from '../../hooks/useCollectifId';
+import { inviteUser } from '../../lib/inviteUser';
 import { X } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface PlayerModalProps {
   player: Player | null;
@@ -14,6 +17,8 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
   const [photoUrl, setPhotoUrl] = useState('');
   const [units, setUnits] = useState(1);
   const [phone_number, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [pin, setPin] = useState('');
   const [participatesInFund, setParticipatesInFund] = useState(true);
   const [isCoach, setIsCoach] = useState(false);
   
@@ -25,13 +30,17 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const collectifId = useCollectifId();
+
   useEffect(() => {
     if (player) {
       setFirstName(player.first_name);
       setLastName(player.last_name);
+      setEmail(player.email || '');
       setPhotoUrl(player.photo_url || '');
       setUnits(player.units);
       setPhoneNumber(player.phone_number || '');
+      setPin(player.pin || '');
       setParticipatesInFund(player.participates_in_fund ?? true);
       setIsCoach(player.is_coach ?? false);
       // Récupération des valeurs depuis la DB
@@ -56,6 +65,7 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
         photo_url: photoUrl || null,
         units,
         phone_number: phone_number || null,
+        pin: pin || null,
         participates_in_fund: participatesInFund,
         is_coach: isCoach,
         carpooling: carpooling,
@@ -66,19 +76,41 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
 
       if (player) {
         const { error: updateError } = await supabase
-          .from('players')
+          .from('members')
           .update(playerData)
           .eq('id', player.id);
 
         if (updateError) throw updateError;
         await notifyPlayerAction(phone_number || undefined, playerName, 'updated');
+
+        if (!player.user_id && email.trim()) {
+          try {
+            const result = await inviteUser(email.trim(), 'user', collectifId ?? undefined, player.id);
+            if (result?.emailSent === false) toast.error(result.message);
+          } catch (inviteErr) {
+            toast.error(
+              `Joueur modifié, mais l'invitation a échoué (${inviteErr instanceof Error ? inviteErr.message : 'erreur inconnue'}). Tu peux réessayer depuis sa fiche.`
+            );
+          }
+        }
       } else {
-        const { error: insertError } = await supabase
-          .from('players')
-          .insert(playerData);
+        const { data: inserted, error: insertError } = await supabase
+          .from('members')
+          .insert({ ...playerData, collectif_id: collectifId })
+          .select('id')
+          .single();
 
         if (insertError) throw insertError;
         await notifyPlayerAction(phone_number || undefined, playerName, 'created');
+
+        try {
+          const result = await inviteUser(email.trim(), 'user', collectifId ?? undefined, inserted.id);
+          if (result?.emailSent === false) toast.error(result.message);
+        } catch (inviteErr) {
+          toast.error(
+            `Joueur créé, mais l'invitation a échoué (${inviteErr instanceof Error ? inviteErr.message : 'erreur inconnue'}). Tu peux réessayer depuis sa fiche.`
+          );
+        }
       }
 
       onClose();
@@ -114,8 +146,32 @@ export const PlayerModal = ({ player, onClose }: PlayerModalProps) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Numéro de téléphone</label>
-            <input type="tel" value={phone_number} onChange={(e) => setPhoneNumber(e.target.value)} className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500 outline-none" placeholder="33678748374" />
+            <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+              placeholder="joueur@email.com"
+              required={!player}
+              disabled={!!player?.user_id}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              {player?.user_id
+                ? 'Ce joueur a déjà un compte relié à cet email.'
+                : 'Une invitation à se connecter lui sera envoyée automatiquement.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Téléphone</label>
+              <input type="tel" value={phone_number} onChange={(e) => setPhoneNumber(e.target.value)} className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500 outline-none" placeholder="336..." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Code PIN (Sécurité)</label>
+              <input type="text" value={pin} onChange={(e) => setPin(e.target.value)} className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500 outline-none" placeholder="Ex: 1234" maxLength={4} />
+            </div>
           </div>
 
           <div className="space-y-3 pt-2">

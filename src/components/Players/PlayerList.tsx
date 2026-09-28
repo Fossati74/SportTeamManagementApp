@@ -1,10 +1,13 @@
 import { useState, useEffect, useMemo } from "react"; // Ajout de useMemo
 import { supabase, Player } from "../../lib/supabase";
 import {
-  UserPlus, CreditCard as Edit2, Trash2, User, Car, Wine, Calendar, Euro, Search, X as CloseIcon, Phone,
+  UserPlus, CreditCard as Edit2, Trash2, User, Car, Wine, Calendar, Euro, Search, X as CloseIcon, Phone, Mail, CheckCircle2,
 } from "lucide-react";
 import { PlayerModal } from "./PlayerModal";
+import { InviteUserModal } from "../Auth/InviteUserModal";
 import { useAuth } from "../../contexts/AuthContext";
+import { useCollectifId } from "../../hooks/useCollectifId";
+import { deleteMember } from "../../lib/deleteMember";
 import { fuzzyMatch } from "../../utils/search";
 import { formatPrice } from "../../utils/format";
 import { usePlayerStats } from "../../hooks/usePlayerStats";
@@ -18,11 +21,13 @@ export const PlayerList = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [invitePlayer, setInvitePlayer] = useState<Player | null>(null);
   const [licenseFilter, setLicenseFilter] = useState<"all" | "with" | "without">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { user } = useAuth();
-  const isAdmin = !!user;
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+  const collectifId = useCollectifId();
   const { playerStats, totalFinesGlobal, refreshStats } = usePlayerStats();
 
   useEffect(() => { fetchData(); }, []);
@@ -30,10 +35,10 @@ export const PlayerList = () => {
   const fetchData = async () => {
     try {
       const [playersRes, finesRes, beersRes, eventsRes] = await Promise.all([
-        supabase.from("players").select("*").order("last_name", { ascending: true }),
-        supabase.from("fines").select("*, fine_types(amount)"),
-        supabase.from("beers").select("*"),
-        supabase.from("event_debts").select("*"),
+        supabase.from("members").select("*").eq("collectif_id", collectifId).order("last_name", { ascending: true }),
+        supabase.from("fines").select("*, fine_types(amount)").eq("collectif_id", collectifId),
+        supabase.from("beers").select("*").eq("collectif_id", collectifId),
+        supabase.from("event_debts").select("*").eq("collectif_id", collectifId),
       ]);
 
       if (playersRes.error) throw playersRes.error;
@@ -74,11 +79,17 @@ export const PlayerList = () => {
   const handleDelete = async (id: string) => {
     if (!confirm("Supprimer ce joueur ?")) return;
     try {
-      await supabase.from("players").delete().eq("id", id);
+      const result = await deleteMember(id);
       fetchData();
       refreshStats();
-      toast.success("Joueur supprimé !");
-    } catch (e) { console.error(e); }
+      if (result.warning) {
+        toast.error(result.warning);
+      } else {
+        toast.success("Joueur supprimé !");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Échec de la suppression");
+    }
   };
 
   const sortedPlayers = useMemo(() => {
@@ -143,6 +154,9 @@ export const PlayerList = () => {
                 </div>
                 {isAdmin && (
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {!player.user_id && (
+                      <button onClick={() => setInvitePlayer(player)} title="Inviter ce joueur" className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg"><Mail size={16} /></button>
+                    )}
                     <button onClick={() => { setSelectedPlayer(player); setIsModalOpen(true); }} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-lg"><Edit2 size={16} /></button>
                     <button onClick={() => handleDelete(player.id)} className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg"><Trash2 size={16} /></button>
                   </div>
@@ -157,6 +171,12 @@ export const PlayerList = () => {
                 </div>
                 {stats.balance <= 0 && <div className="bg-green-500/10 border border-green-500/20 px-2 py-1 rounded-lg"><span className="text-[9px] text-green-500 font-bold uppercase">À jour</span></div>}
                 {stats.balance > 0 && <div className="bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-lg"><span className="text-[9px] text-red-500 font-bold uppercase">En retard</span></div>}
+                {player.user_id && (
+                  <div className="flex items-center gap-1 bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-700" title="Compte relié">
+                    <CheckCircle2 size={12} className="text-green-500" />
+                    <span className="text-[9px] text-slate-300 font-bold uppercase">Connecté</span>
+                  </div>
+                )}
               </div>
               {isAdmin && player.phone_number && <div className="mt-4 pt-3 border-t border-slate-700/50"><div className="flex items-center gap-2 overflow-hidden text-slate-400"><Phone size={14} className="text-blue-400 shrink-0" /><span className="text-xs truncate">{player.phone_number}</span></div></div>}
             </div>
@@ -164,6 +184,12 @@ export const PlayerList = () => {
         })}
       </div>
       {isModalOpen && <PlayerModal player={selectedPlayer} onClose={handleModalClose} />}
+      {invitePlayer && (
+        <InviteUserModal
+          player={invitePlayer}
+          onClose={() => { setInvitePlayer(null); fetchData(); }}
+        />
+      )}
     </div>
   );
 };

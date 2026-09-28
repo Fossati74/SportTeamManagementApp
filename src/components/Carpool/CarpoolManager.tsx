@@ -6,6 +6,7 @@ import {
   Check, Edit2, ChevronDown, Users 
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useCollectifId } from "../../hooks/useCollectifId";
 import { SectionHeader } from "../common/SectionHeader";
 import { PlayerSearchSelect } from "../common/PlayerSearchSelect";
 import toast from "react-hot-toast";
@@ -22,8 +23,9 @@ export const CarpoolManager = () => {
   const [weekends, setWeekends] = useState<string[]>([]);
   const [showAllHistory, setShowAllHistory] = useState(false);
   
-  const { user } = useAuth();
-  const isAdmin = !!user;
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+  const collectifId = useCollectifId();
   const { playerStats, refreshStats } = usePlayerStats();
 
   useEffect(() => { fetchData(); }, []);
@@ -32,9 +34,9 @@ export const CarpoolManager = () => {
   const fetchData = async () => {
     try {
       const [carpoolsRes, playersRes, proposalsRes] = await Promise.all([
-        supabase.from("carpools").select("*").order("weekend_date", { ascending: false }),
-        supabase.from("players").select("*").order("last_name", { ascending: true }),
-        supabase.from("carpool_proposals").select("*, players(*)").order("created_at", { ascending: false }),
+        supabase.from("carpools").select("*").eq("collectif_id", collectifId).order("weekend_date", { ascending: false }),
+        supabase.from("members").select("*").eq("collectif_id", collectifId).order("last_name", { ascending: true }),
+        supabase.from("carpool_proposals").select("*, players:members(*)").eq("collectif_id", collectifId).order("created_at", { ascending: false }),
       ]);
       setCarpools(carpoolsRes.data || []);
       setPlayers(playersRes.data || []);
@@ -64,7 +66,7 @@ export const CarpoolManager = () => {
       if (existing) {
         await supabase.from("carpools").update(teamData).eq("id", existing.id);
       } else {
-        await supabase.from("carpools").insert({ weekend_date: weekendDate, ...teamData });
+        await supabase.from("carpools").insert({ weekend_date: weekendDate, collectif_id: collectifId, ...teamData });
       }
       toast.success("Assignation enregistrée");
       fetchData(); refreshStats();
@@ -111,6 +113,7 @@ export const CarpoolManager = () => {
                   isAdmin={isAdmin}
                   playerStats={playerStats}
                   onDelete={handleDelete}
+                  collectifId={collectifId}
                 />
               ))}
             </div>
@@ -197,7 +200,7 @@ export const CarpoolManager = () => {
   );
 };
 
-const WeekendCard = ({ weekendDate, existing, players, proposals, onRefresh, isAdmin, playerStats, onDelete, onAssign }: any) => {
+const WeekendCard = ({ weekendDate, existing, players, proposals, onRefresh, isAdmin, playerStats, onDelete, onAssign, collectifId }: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [team1, setTeam1] = useState<string[]>([""]);
   const [team2, setTeam2] = useState<string[]>([""]);
@@ -235,7 +238,7 @@ const WeekendCard = ({ weekendDate, existing, players, proposals, onRefresh, isA
 
   const handlePropose = async () => {
     if (!selectedProposalPlayer) return;
-    await supabase.from("carpool_proposals").insert({ weekend_date: weekendDate, player_id: selectedProposalPlayer });
+    await supabase.from("carpool_proposals").insert({ weekend_date: weekendDate, player_id: selectedProposalPlayer, collectif_id: collectifId });
     toast.success("Disponibilité envoyée !");
     setShowProposalForm(false);
     setSelectedProposalPlayer("");
